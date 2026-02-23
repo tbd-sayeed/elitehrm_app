@@ -1,0 +1,28 @@
+buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        ndkVersion = "27.1.12297006"
+        kotlinVersion = "2.1.20"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    }
+}
+
+// Android Studio Gradle sync may not have Node on PATH.
+// Also, some libraries (e.g. react-native-gesture-handler) try to resolve React Native via `node`.
+// Providing this path avoids running `node` during Gradle configuration.
+ext {
+    REACT_NATIVE_NODE_MODULES_DIR = file("../node_modules/react-native")
+}
+
+apply plugin: "com.facebook.react.rootproject"
