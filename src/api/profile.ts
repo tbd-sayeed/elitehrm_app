@@ -107,6 +107,9 @@ export const updateProfilePhoto = async (
   file: UpdateProfilePhotoRequest
 ): Promise<UpdateProfileResponse> => {
   const formData = new FormData();
+  // Laravel/PHP commonly won't parse multipart uploads on PUT/PATCH into $_FILES.
+  // Use POST with method override so the backend receives the file reliably.
+  formData.append('_method', 'PUT');
   formData.append('photo', {
     uri: file.uri,
     type: file.type || 'image/jpeg',
@@ -124,7 +127,7 @@ export const updateProfilePhoto = async (
   }
 
   const response = await fetch(url, {
-    method: 'PUT',
+    method: 'POST',
     headers,
     body: formData,
   });

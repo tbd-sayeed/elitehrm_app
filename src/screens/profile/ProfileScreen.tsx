@@ -19,6 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MainStackParamList } from '../../navigation/MainNavigator';
 import { useAuthStore } from '../../store/authStore';
+import { withCacheBust } from '../../utils/image';
 
 const capitalizeFirst = (s: string) =>
   s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '—';
@@ -28,7 +29,7 @@ type ProfileNavigationProp = StackNavigationProp<MainStackParamList, 'Profile'>;
 const ProfileScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<ProfileNavigationProp>();
-  const { user } = useAuthStore();
+  const { user, photoCacheKey } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
 
   const profileData = {
@@ -123,7 +124,7 @@ const ProfileScreen: React.FC = () => {
             <View style={styles.profilePhoto}>
               {profileData.photoUrl ? (
                 <Image
-                  source={{ uri: profileData.photoUrl }}
+                  source={{ uri: withCacheBust(profileData.photoUrl, photoCacheKey) }}
                   style={styles.profilePhotoImage}
                 />
               ) : (

@@ -23,13 +23,14 @@ import { navigationRef } from '../../utils/navigationRef';
 import { logout as logoutAPI } from '../../api/auth';
 import { clearAllStorage } from '../../utils/storage';
 import { useAuthStore } from '../../store/authStore';
+import { withCacheBust } from '../../utils/image';
 
 type DashboardNavigationProp = StackNavigationProp<MainStackParamList, 'Dashboard'>;
 
 const DashboardScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<DashboardNavigationProp>();
-  const { logout: logoutStore, user, dashboardData } = useAuthStore();
+  const { logout: logoutStore, user, dashboardData, photoCacheKey } = useAuthStore();
   const [refreshing, setRefreshing] = React.useState(false);
   const [now, setNow] = React.useState(() => new Date());
 
@@ -479,7 +480,7 @@ const DashboardScreen: React.FC = () => {
               activeOpacity={0.7}>
               {user?.photo_url ? (
                 <Image
-                  source={{ uri: user.photo_url }}
+                  source={{ uri: withCacheBust(user.photo_url, photoCacheKey) }}
                   style={styles.profilePhotoImage}
                 />
               ) : (

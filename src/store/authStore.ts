@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand';
+import { userStorage } from '../utils/storage';
 
 export interface PlaceOfWork {
   id: number;
@@ -161,6 +162,7 @@ interface AuthState {
   refreshToken: string | null;
   isLoading: boolean;
   dashboardData: DashboardData | null;
+  photoCacheKey: number;
 
   // Actions
   setAuth: (data: {
@@ -183,23 +185,44 @@ export const useAuthStore = create<AuthState>((set) => ({
   refreshToken: null,
   isLoading: false,
   dashboardData: null,
+  photoCacheKey: 0,
 
   // Set authentication data
   setAuth: (data) =>
-    set({
+    set(() => {
+      // Persist user for auto-login restore
+      void userStorage.setUserData(data.user);
+      return {
       isAuthenticated: true,
       user: data.user,
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
       dashboardData: data.dashboardData || null,
       isLoading: false,
+      // Bust avatar cache on app start/login so updated images show after relaunch.
+      photoCacheKey: data.user?.photo_url ? Date.now() : 0,
+      };
     }),
 
   // Update user data
   updateUser: (userData) =>
-    set((state) => ({
-      user: state.user ? { ...state.user, ...userData } : null,
-    })),
+    set((state) => {
+      const nextUser = state.user ? { ...state.user, ...userData } : null;
+      if (nextUser) {
+        // Keep storage in sync so auto-login restores latest user (e.g., updated photo_url).
+        void userStorage.setUserData(nextUser);
+      }
+      const shouldBumpPhotoCache =
+        state.user &&
+        Object.prototype.hasOwnProperty.call(userData, 'photo_url') &&
+        typeof (userData as any).photo_url === 'string' &&
+        (userData as any).photo_url.length > 0;
+
+      return {
+        user: nextUser,
+        photoCacheKey: shouldBumpPhotoCache ? Date.now() : state.photoCacheKey,
+      };
+    }),
 
   // Set dashboard data
   setDashboardData: (data) =>
@@ -222,6 +245,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       refreshToken: null,
       isLoading: false,
       dashboardData: null,
+      photoCacheKey: 0,
     }),
 }));
 

@@ -1,6 +1,18 @@
 pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
 plugins { id("com.facebook.react.settings") }
-def nodeBinary = "/usr/local/bin/node"
+// Gradle/Android Studio may not have Node on PATH.
+// Prefer an absolute Node path when available.
+def nodeBinaryCandidates = []
+def envNodeBinary = System.getenv("NODE_BINARY")
+if (envNodeBinary) {
+  nodeBinaryCandidates.add(envNodeBinary)
+}
+nodeBinaryCandidates.addAll([
+  "/opt/homebrew/bin/node", // Apple Silicon Homebrew
+  "/usr/local/bin/node",    // Intel Homebrew
+  "node"                    // fallback to PATH
+])
+def nodeBinary = nodeBinaryCandidates.find { it == "node" || new File(it).exists() } ?: "node"
 extensions.configure(com.facebook.react.ReactSettingsExtension){ ex ->
   ex.autolinkLibrariesFromCommand(
     // Command runs from project root (workingDirectory = ..), so keep paths relative to root.

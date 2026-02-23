@@ -26,6 +26,7 @@ import { useAuthStore } from '../../store/authStore';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { updateProfile, updateProfilePhoto } from '../../api/profile';
 import { showToast } from '../../utils/toast';
+import { withCacheBust } from '../../utils/image';
 
 type EditProfileNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -77,7 +78,7 @@ const formatDateForApi = (d: Date): string =>
 const EditProfileScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<EditProfileNavigationProp>();
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, photoCacheKey } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -338,7 +339,9 @@ const EditProfileScreen: React.FC = () => {
             <View style={styles.profilePhoto}>
               {photoPreviewUri || user?.photo_url ? (
                 <Image
-                  source={{ uri: photoPreviewUri || user?.photo_url || '' }}
+                  source={{
+                    uri: photoPreviewUri || (user?.photo_url ? withCacheBust(user.photo_url, photoCacheKey) : ''),
+                  }}
                   style={styles.profilePhotoImage}
                 />
               ) : (
