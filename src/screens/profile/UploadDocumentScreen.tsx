@@ -12,8 +12,8 @@ import {
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
-  Alert,
-  ActionSheetIOS,
+  Modal,
+  Pressable,
   Platform,
   TextInput,
 } from 'react-native';
@@ -110,6 +110,7 @@ const UploadDocumentScreen: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState<'validity' | 'start' | 'end' | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [showFileSheet, setShowFileSheet] = useState(false);
 
   const onPickImage = (launcher: typeof launchCamera | typeof launchImageLibrary) => {
     launcher(IMAGE_OPTIONS, (response) => {
@@ -149,36 +150,23 @@ const UploadDocumentScreen: React.FC = () => {
     }
   };
 
-  const showFileOptions = () => {
-    const options = [
-      'Take a photo',
-      'Choose from gallery',
-      'Choose file (PDF, image, doc)',
-      'Cancel',
-    ];
-    const cancelIndex = 3;
+  const closeFileSheet = () => setShowFileSheet(false);
 
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options, cancelButtonIndex: cancelIndex },
-        (index) => {
-          if (index === 0) onPickImage(launchCamera);
-          if (index === 1) onPickImage(launchImageLibrary);
-          if (index === 2) onPickFile();
-        }
-      );
-    } else {
-      Alert.alert(
-        'Select document',
-        'Take a photo, choose from gallery, or pick a file (e.g. PDF).',
-        [
-          { text: 'Take a photo', onPress: () => onPickImage(launchCamera) },
-          { text: 'Choose from gallery', onPress: () => onPickImage(launchImageLibrary) },
-          { text: 'Choose file (PDF, image, doc)', onPress: onPickFile },
-          { text: 'Cancel', style: 'cancel' as const },
-        ]
-      );
-    }
+  const showFileOptions = () => setShowFileSheet(true);
+
+  const chooseFile = () => {
+    closeFileSheet();
+    void onPickFile();
+  };
+
+  const chooseFromGallery = () => {
+    closeFileSheet();
+    onPickImage(launchImageLibrary);
+  };
+
+  const takePhoto = () => {
+    closeFileSheet();
+    onPickImage(launchCamera);
   };
 
   const buildFormData = (): FormData => {
@@ -411,6 +399,84 @@ const UploadDocumentScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showFileSheet}
+        transparent
+        animationType="fade"
+        onRequestClose={closeFileSheet}>
+        <Pressable style={styles.sheetOverlay} onPress={closeFileSheet}>
+          <Pressable style={styles.sheetContainer} onPress={() => {}}>
+            <View style={styles.sheetHeaderRow}>
+              <View style={styles.sheetTitleRow}>
+                <Ionicons name="attach-outline" size={18} color="#0f172a" />
+                <Text style={styles.sheetTitle}>Select document</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.sheetCloseButton}
+                onPress={closeFileSheet}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Ionicons name="close" size={20} color="#0f172a" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.sheetSubtitle}>
+              Take a photo, choose from gallery, or pick a file (e.g. PDF).
+            </Text>
+
+            <View style={styles.sheetActions}>
+              <TouchableOpacity style={styles.sheetAction} onPress={chooseFile} activeOpacity={0.8}>
+                <View style={styles.sheetActionLeft}>
+                  <View style={[styles.sheetIcon, { backgroundColor: '#eef2ff' }]}>
+                    <Ionicons name="document-text-outline" size={18} color="#1a237e" />
+                  </View>
+                  <View style={styles.sheetActionTextWrap}>
+                    <Text style={styles.sheetActionTitle}>Choose file</Text>
+                    <Text style={styles.sheetActionDesc}>PDF, image, DOC/DOCX</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.sheetAction}
+                onPress={chooseFromGallery}
+                activeOpacity={0.8}>
+                <View style={styles.sheetActionLeft}>
+                  <View style={[styles.sheetIcon, { backgroundColor: '#ecfeff' }]}>
+                    <Ionicons name="images-outline" size={18} color="#0e7490" />
+                  </View>
+                  <View style={styles.sheetActionTextWrap}>
+                    <Text style={styles.sheetActionTitle}>Choose from gallery</Text>
+                    <Text style={styles.sheetActionDesc}>Select an image</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.sheetAction} onPress={takePhoto} activeOpacity={0.8}>
+                <View style={styles.sheetActionLeft}>
+                  <View style={[styles.sheetIcon, { backgroundColor: '#f0fdf4' }]}>
+                    <Ionicons name="camera-outline" size={18} color="#166534" />
+                  </View>
+                  <View style={styles.sheetActionTextWrap}>
+                    <Text style={styles.sheetActionTitle}>Take a photo</Text>
+                    <Text style={styles.sheetActionDesc}>Use your camera</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.sheetCancelButton}
+              onPress={closeFileSheet}
+              activeOpacity={0.8}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -499,6 +565,105 @@ const styles = StyleSheet.create({
   },
   uploadButtonDisabled: { opacity: 0.7 },
   uploadButtonText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheetContainer: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingTop: 14,
+    paddingHorizontal: 16,
+    paddingBottom: Platform.select({ ios: 28, android: 18 }),
+  },
+  sheetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sheetTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  sheetCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f1f5f9',
+  },
+  sheetSubtitle: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 18,
+  },
+  sheetActions: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  sheetAction: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+  },
+  sheetActionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  sheetIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  sheetActionTextWrap: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  sheetActionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  sheetActionDesc: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#64748b',
+  },
+  sheetCancelButton: {
+    marginTop: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  sheetCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
 });
 
 export default UploadDocumentScreen;

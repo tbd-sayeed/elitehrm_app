@@ -3,7 +3,7 @@
  * @format
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MainStackParamList } from '../../navigation/MainNavigator';
+import { getCurrentTimesheet, type AttendanceEntryApi, type AttendanceTimesheetSummary } from '../../api/attendance';
+import { showToast } from '../../utils/toast';
 
 type TimesheetDetailNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -27,47 +29,59 @@ const TimesheetDetailScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<TimesheetDetailNavigationProp>();
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [timesheet, setTimesheet] = useState<AttendanceTimesheetSummary | null>(null);
+  const [entries, setEntries] = useState<AttendanceEntryApi[]>([]);
 
-  // Static data - will be replaced with API data later
-  const timesheetData = {
-    period: 'M01-2026',
-    dateRange: 'January 1 - January 31, 2026',
-    status: 'Approved',
-    totalHours: '45h 30m',
-    entries: [
-      {
-        date: '2026-01-12',
-        dayOfWeek: 'Mon',
-        startTime: '09:00',
-        finishTime: '17:00',
-        breakDuration: '1h',
-        totalHours: '7h 0m',
-      },
-      {
-        date: '2026-01-09',
-        dayOfWeek: 'Fri',
-        startTime: '09:00',
-        finishTime: '18:00',
-        breakDuration: '1h',
-        totalHours: '8h 0m',
-      },
-      {
-        date: '2026-01-08',
-        dayOfWeek: 'Thu',
-        startTime: '09:00',
-        finishTime: '17:00',
-        breakDuration: '1h',
-        totalHours: '7h 0m',
-      },
-    ],
+  const stripSeconds = (t?: string | null) => {
+    if (!t) return '—';
+    const parts = t.split(':');
+    if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+    return t;
   };
+
+  const decimalHoursToLabel = (val?: string | null) => {
+    if (val === null || val === undefined || val === '') return '—';
+    const n = Number(val);
+    if (Number.isNaN(n)) return String(val);
+    const abs = Math.abs(n);
+    const hours = Math.floor(abs);
+    const mins = Math.round((abs - hours) * 60);
+    if (hours === 0) return `${mins}m`;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+  };
+
+  const loadTimesheet = async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (!silent) setIsLoading(true);
+    try {
+      const response = await getCurrentTimesheet();
+      if (response.success) {
+        setTimesheet(response.data?.timesheet ?? null);
+        setEntries(response.data?.entries ?? []);
+      } else {
+        showToast.error('Timesheet', response.message || 'Could not load timesheet');
+      }
+    } catch (err: any) {
+      const message =
+        err.response?.data?.message ||
+        err.message ||
+        'Could not load timesheet. Please try again.';
+      showToast.error('Timesheet', message);
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTimesheet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    // Static - will add API call later
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    loadTimesheet({ silent: true }).finally(() => setRefreshing(false));
   }, []);
 
   const formatDate = (dateString: string) => {
@@ -77,6 +91,17 @@ const TimesheetDetailScreen: React.FC = () => {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const formatRange = (start?: string, end?: string) => {
+    if (!start || !end) return '—';
+    try {
+      const s = new Date(start);
+      const e = new Date(end);
+      return `${s.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} - ${e.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+    } catch {
+      return `${start} - ${end}`;
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -137,79 +162,102 @@ const TimesheetDetailScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}>
-        {/* Timesheet Summary Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Timesheet Information</Text>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Period:</Text>
-            <Text style={styles.summaryValue}>{timesheetData.period}</Text>
+        {isLoading && !timesheet ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Timesheet Information</Text>
+            <Text style={styles.loadingText}>Loading timesheet…</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Date Range:</Text>
-            <Text style={styles.summaryValue}>{timesheetData.dateRange}</Text>
+        ) : !timesheet ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Timesheet Information</Text>
+            <Text style={styles.loadingText}>No timesheet found</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Status:</Text>
-            <View
-              style={[
-                styles.statusBadge,
-                {
-                  backgroundColor: getStatusBgColor(timesheetData.status),
-                },
-              ]}>
-              <Text
-                style={[
-                  styles.statusText,
-                  { color: getStatusColor(timesheetData.status) },
-                ]}>
-                {timesheetData.status}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Hours:</Text>
-            <Text style={[styles.summaryValue, styles.totalHours]}>
-              {timesheetData.totalHours}
-            </Text>
-          </View>
-        </View>
-
-        {/* Entries List */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Entries</Text>
-          {timesheetData.entries.map((entry, index) => (
-            <View
-              key={index}
-              style={[
-                styles.entryItem,
-                index < timesheetData.entries.length - 1 && styles.entryBorder,
-              ]}>
-              <View style={styles.entryHeader}>
-                <Text style={styles.entryDate}>
-                  {formatDate(entry.date)} ({entry.dayOfWeek})
+        ) : (
+          <>
+            {/* Timesheet Summary Card */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Timesheet Information</Text>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Period:</Text>
+                <Text style={styles.summaryValue}>{timesheet.period_code}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Date Range:</Text>
+                <Text style={styles.summaryValue}>
+                  {formatRange(timesheet.start_date, timesheet.end_date)}
                 </Text>
               </View>
-              <View style={styles.entryDetails}>
-                <View style={styles.entryRow}>
-                  <Text style={styles.entryLabel}>Time:</Text>
-                  <Text style={styles.entryValue}>
-                    {entry.startTime} - {entry.finishTime}
-                  </Text>
-                </View>
-                <View style={styles.entryRow}>
-                  <Text style={styles.entryLabel}>Break:</Text>
-                  <Text style={styles.entryValue}>{entry.breakDuration}</Text>
-                </View>
-                <View style={styles.entryRow}>
-                  <Text style={styles.entryLabel}>Total:</Text>
-                  <Text style={[styles.entryValue, styles.entryTotal]}>
-                    {entry.totalHours}
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Status:</Text>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor: getStatusBgColor(timesheet.status),
+                    },
+                  ]}>
+                  <Text
+                    style={[
+                      styles.statusText,
+                      { color: getStatusColor(timesheet.status) },
+                    ]}>
+                    {timesheet.status}
                   </Text>
                 </View>
               </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Total Hours:</Text>
+                <Text style={[styles.summaryValue, styles.totalHours]}>
+                  {decimalHoursToLabel(timesheet.total_hours ?? null)}
+                </Text>
+              </View>
             </View>
-          ))}
-        </View>
+
+            {/* Entries List */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Entries</Text>
+              {entries.length === 0 ? (
+                <Text style={styles.loadingText}>No entries</Text>
+              ) : (
+                entries.map((entry, index) => (
+                  <View
+                    key={String(entry.id ?? index)}
+                    style={[
+                      styles.entryItem,
+                      index < entries.length - 1 && styles.entryBorder,
+                    ]}>
+                    <View style={styles.entryHeader}>
+                      <Text style={styles.entryDate}>
+                        {formatDate(entry.date)} ({entry.day ?? '—'})
+                      </Text>
+                    </View>
+                    <View style={styles.entryDetails}>
+                      <View style={styles.entryRow}>
+                        <Text style={styles.entryLabel}>Time:</Text>
+                        <Text style={styles.entryValue}>
+                          {stripSeconds(entry.start_time)} -{' '}
+                          {stripSeconds(entry.finish_time)}
+                        </Text>
+                      </View>
+                      <View style={styles.entryRow}>
+                        <Text style={styles.entryLabel}>Break:</Text>
+                        <Text style={styles.entryValue}>
+                          {decimalHoursToLabel(entry.break_duration ?? null)}
+                        </Text>
+                      </View>
+                      <View style={styles.entryRow}>
+                        <Text style={styles.entryLabel}>Total:</Text>
+                        <Text style={[styles.entryValue, styles.entryTotal]}>
+                          {decimalHoursToLabel(entry.total_hours ?? null)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          </>
+        )}
 
         {/* Link to Full Attendance List */}
         <TouchableOpacity
@@ -369,6 +417,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1a237e',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#757575',
+    textAlign: 'center',
+    marginTop: 10,
   },
 });
 
