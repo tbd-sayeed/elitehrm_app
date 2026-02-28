@@ -26,7 +26,8 @@ const getBaseURL = (): string => {
       //return 'http://10.0.2.2:8000/api/v1/employee';
       return 'https://hrm.elitementors.org.uk/api/v1/employee';
     }
-    return 'http://localhost:8000/api/v1/employee';
+    // return 'http://localhost:8000/api/v1/employee';
+    return 'https://hrm.elitementors.org.uk/api/v1/employee';
   }
   return 'https://hrm.elitementors.org.uk/api/v1/employee';
 };
