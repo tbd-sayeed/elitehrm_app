@@ -13,6 +13,8 @@ import {
   StatusBar,
   RefreshControl,
   Image,
+  Alert,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -20,6 +22,12 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { MainStackParamList } from '../../navigation/MainNavigator';
 import { useAuthStore } from '../../store/authStore';
 import { withCacheBust } from '../../utils/image';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { showToast } from '../../utils/toast';
+
+const PRIVACY_POLICY_URL = 'https://hrm.elitementors.org.uk/privacy-policy';
+const DATA_DELETION_POLICY_URL = 'https://hrm.elitementors.org.uk/data-deletion';
+const ACCOUNT_DELETION_URL = 'https://hrm.elitementors.org.uk/account-deletion';
 
 const capitalizeFirst = (s: string) =>
   s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '—';
@@ -70,6 +78,30 @@ const ProfileScreen: React.FC = () => {
 
   const handleViewDocuments = () => {
     navigation.navigate('Documents');
+  };
+
+  const openUrl = async (url: string) => {
+    try {
+      const ok = await Linking.canOpenURL(url);
+      if (!ok) {
+        showToast.error('Open link', 'Could not open the link on this device.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      showToast.error('Open link', 'Could not open the link. Please try again.');
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Request account deletion',
+      'This will open a secure page where you can request permanent deletion of your EliteHR account and profile data. Some records (e.g., timesheets/leave) may be retained for legal or payroll purposes.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', style: 'destructive', onPress: () => void openUrl(ACCOUNT_DELETION_URL) },
+      ]
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -268,6 +300,49 @@ const ProfileScreen: React.FC = () => {
           activeOpacity={0.8}>
           <Text style={styles.editButtonText}>Edit Profile</Text>
         </TouchableOpacity>
+
+        {/* Legal & Privacy */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Legal & Privacy</Text>
+
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => void openUrl(PRIVACY_POLICY_URL)}
+            activeOpacity={0.8}>
+            <View style={styles.linkRowLeft}>
+              <Ionicons name="shield-checkmark-outline" size={18} color="#1a237e" />
+              <Text style={styles.linkRowText}>Privacy Policy</Text>
+            </View>
+            <Ionicons name="open-outline" size={18} color="#94a3b8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowBorder]}
+            onPress={() => void openUrl(DATA_DELETION_POLICY_URL)}
+            activeOpacity={0.8}>
+            <View style={styles.linkRowLeft}>
+              <Ionicons name="document-text-outline" size={18} color="#1a237e" />
+              <Text style={styles.linkRowText}>Data Deletion Policy</Text>
+            </View>
+            <Ionicons name="open-outline" size={18} color="#94a3b8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.linkRow, styles.linkRowBorder]}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.8}>
+            <View style={styles.linkRowLeft}>
+              <Ionicons name="trash-outline" size={18} color="#b91c1c" />
+              <View>
+                <Text style={[styles.linkRowText, { color: '#b91c1c' }]}>Delete account</Text>
+                <Text style={styles.linkRowSubText}>
+                  Request permanent account deletion
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -448,6 +523,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ffffff',
     letterSpacing: 0.5,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+  },
+  linkRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  linkRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    paddingRight: 12,
+  },
+  linkRowText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  linkRowSubText: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
   },
 });
 

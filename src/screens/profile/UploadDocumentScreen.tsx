@@ -3,7 +3,7 @@
  * @format
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -34,6 +34,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { uploadDocument, listDocuments } from '../../api/documents';
 import { showToast } from '../../utils/toast';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import DeviceInfo from 'react-native-device-info';
 
 type UploadDocumentNavigationProp = StackNavigationProp<MainStackParamList, 'UploadDocument'>;
 type UploadDocumentRouteProp = RouteProp<MainStackParamList, 'UploadDocument'>;
@@ -111,6 +112,14 @@ const UploadDocumentScreen: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showFileSheet, setShowFileSheet] = useState(false);
+  const [isEmulator, setIsEmulator] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    DeviceInfo.isEmulator()
+      .then((v) => setIsEmulator(Boolean(v)))
+      .catch(() => setIsEmulator(false));
+  }, []);
 
   const onPickImage = (launcher: typeof launchCamera | typeof launchImageLibrary) => {
     launcher(IMAGE_OPTIONS, (response) => {
@@ -166,6 +175,13 @@ const UploadDocumentScreen: React.FC = () => {
 
   const takePhoto = () => {
     closeFileSheet();
+    if (Platform.OS === 'ios' && isEmulator) {
+      showToast.info(
+        'Camera unavailable',
+        'iOS Simulator does not support the camera. Please use Photos or test on a real iPhone.'
+      );
+      return;
+    }
     onPickImage(launchCamera);
   };
 
@@ -454,18 +470,20 @@ const UploadDocumentScreen: React.FC = () => {
                 <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.sheetAction} onPress={takePhoto} activeOpacity={0.8}>
-                <View style={styles.sheetActionLeft}>
-                  <View style={[styles.sheetIcon, { backgroundColor: '#f0fdf4' }]}>
-                    <Ionicons name="camera-outline" size={18} color="#166534" />
+              {!(Platform.OS === 'ios' && isEmulator) && (
+                <TouchableOpacity style={styles.sheetAction} onPress={takePhoto} activeOpacity={0.8}>
+                  <View style={styles.sheetActionLeft}>
+                    <View style={[styles.sheetIcon, { backgroundColor: '#f0fdf4' }]}>
+                      <Ionicons name="camera-outline" size={18} color="#166534" />
+                    </View>
+                    <View style={styles.sheetActionTextWrap}>
+                      <Text style={styles.sheetActionTitle}>Take a photo</Text>
+                      <Text style={styles.sheetActionDesc}>Use your camera</Text>
+                    </View>
                   </View>
-                  <View style={styles.sheetActionTextWrap}>
-                    <Text style={styles.sheetActionTitle}>Take a photo</Text>
-                    <Text style={styles.sheetActionDesc}>Use your camera</Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-              </TouchableOpacity>
+                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              )}
             </View>
 
             <TouchableOpacity

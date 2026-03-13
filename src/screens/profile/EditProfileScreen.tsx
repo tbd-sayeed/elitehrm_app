@@ -27,6 +27,7 @@ import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { updateProfile, updateProfilePhoto } from '../../api/profile';
 import { showToast } from '../../utils/toast';
 import { withCacheBust } from '../../utils/image';
+import DeviceInfo from 'react-native-device-info';
 
 type EditProfileNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -84,6 +85,7 @@ const EditProfileScreen: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [photoPreviewUri, setPhotoPreviewUri] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isEmulator, setIsEmulator] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -107,6 +109,13 @@ const EditProfileScreen: React.FC = () => {
       });
     }
   }, [user]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    DeviceInfo.isEmulator()
+      .then((v) => setIsEmulator(Boolean(v)))
+      .catch(() => setIsEmulator(false));
+  }, []);
 
   const handleSave = async () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
@@ -218,14 +227,21 @@ const EditProfileScreen: React.FC = () => {
   const handleChangePhoto = () => {
     if (Platform.OS === 'ios') {
       const { ActionSheetIOS } = require('react-native');
+      const options = isEmulator
+        ? ['Choose from Library', 'Cancel']
+        : ['Take Photo', 'Choose from Library', 'Cancel'];
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Take Photo', 'Choose from Library', 'Cancel'],
-          cancelButtonIndex: 2,
+          options,
+          cancelButtonIndex: options.length - 1,
         },
         (buttonIndex) => {
-          if (buttonIndex === 0) openCamera();
-          else if (buttonIndex === 1) openLibrary();
+          if (!isEmulator) {
+            if (buttonIndex === 0) openCamera();
+            else if (buttonIndex === 1) openLibrary();
+          } else {
+            if (buttonIndex === 0) openLibrary();
+          }
         }
       );
     } else {
@@ -252,6 +268,10 @@ const EditProfileScreen: React.FC = () => {
   };
 
   const openCamera = () => {
+    if (Platform.OS === 'ios' && isEmulator) {
+      showToast.info('Camera unavailable', 'iOS Simulator does not support the camera. Use Photos or test on a real iPhone.');
+      return;
+    }
     launchCamera(
       { mediaType: 'photo', maxWidth: 512, maxHeight: 512, quality: 0.6 },
       (response) => {

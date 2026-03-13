@@ -61,10 +61,10 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
   <key>NSPhotoLibraryUsageDescription</key>
-  <string>This app requires access to your photo library to allow you to upload profile pictures and attachments.</string>
+  <string>EliteHR needs access to your photo library so you can choose a profile photo or upload document images (for example, a passport or right-to-work document) to your HR profile.</string>
   <key>NSPhotoLibraryAddUsageDescription</key>
-  <string>This app requires permission to save images to your photo library when needed.</string>
+  <string>EliteHR can save a photo you take (for example, a document photo) to your photo library if you choose to keep a copy on your device.</string>
   <key>NSCameraUsageDescription</key>
-  <string>This app requires camera access to allow you to capture photos.</string>
+  <string>EliteHR uses your camera so you can take a profile photo and capture document photos (for example, a passport or employee contract) to upload to your HR profile.</string>
 </dict>
 </plist>
