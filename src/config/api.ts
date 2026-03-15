@@ -70,6 +70,7 @@ export const API_ENDPOINTS = {
   DOCUMENTS: {
     LIST: '/documents',
     UPLOAD: '/documents',
+    UPDATE: (id: number) => `/documents/${id}`,
     DOWNLOAD: (id: number) => `/documents/${id}/download`,
   },
 } as const;

@@ -16,6 +16,10 @@ import {
   StatusBar,
   Alert,
   Image,
+  InteractionManager,
+  Modal,
+  Pressable,
+  Keyboard,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +32,14 @@ import { updateProfile, updateProfilePhoto } from '../../api/profile';
 import { showToast } from '../../utils/toast';
 import { withCacheBust } from '../../utils/image';
 import DeviceInfo from 'react-native-device-info';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import {
+  check,
+  request,
+  RESULTS,
+  PERMISSIONS,
+  openSettings,
+} from 'react-native-permissions';
 
 type EditProfileNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -86,6 +98,8 @@ const EditProfileScreen: React.FC = () => {
   const [photoPreviewUri, setPhotoPreviewUri] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isEmulator, setIsEmulator] = useState(false);
+  const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const pendingPhotoActionRef = React.useRef<null | (() => void)>(null);
 
   useEffect(() => {
     if (user) {
@@ -226,31 +240,21 @@ const EditProfileScreen: React.FC = () => {
 
   const handleChangePhoto = () => {
     if (Platform.OS === 'ios') {
-      const { ActionSheetIOS } = require('react-native');
-      const options = isEmulator
-        ? ['Choose from Library', 'Cancel']
-        : ['Take Photo', 'Choose from Library', 'Cancel'];
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex: options.length - 1,
-        },
-        (buttonIndex) => {
-          if (!isEmulator) {
-            if (buttonIndex === 0) openCamera();
-            else if (buttonIndex === 1) openLibrary();
-          } else {
-            if (buttonIndex === 0) openLibrary();
-          }
-        }
-      );
+      setShowPhotoSheet(true);
     } else {
       Alert.alert('Profile Photo', undefined, [
-        { text: 'Take Photo', onPress: () => openCamera() },
-        { text: 'Choose from Library', onPress: () => openLibrary() },
+        { text: 'Take Photo', onPress: () => void openCamera() },
+        { text: 'Choose from Library', onPress: () => void openLibrary() },
         { text: 'Cancel', style: 'cancel' },
       ]);
     }
+  };
+
+  const closePhotoSheet = () => setShowPhotoSheet(false);
+
+  const runAfterPhotoDismiss = (fn: () => void) => {
+    pendingPhotoActionRef.current = fn;
+    closePhotoSheet();
   };
 
   const confirmAndUploadPhoto = (uri: string, type?: string, fileName?: string) => {
@@ -267,13 +271,59 @@ const EditProfileScreen: React.FC = () => {
     );
   };
 
-  const openCamera = () => {
+  const ensureIosPermission = async (permission: any, title: string) => {
+    try {
+      let status = await check(permission);
+      if (status === RESULTS.DENIED) {
+        status = await request(permission);
+      }
+
+      if (status === RESULTS.GRANTED || status === RESULTS.LIMITED) return true;
+
+      if (status === RESULTS.BLOCKED) {
+        Alert.alert(
+          `${title} Permission`,
+          `Please enable ${title.toLowerCase()} access in iPhone Settings to continue.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                openSettings().catch(() => {});
+              },
+            },
+          ]
+        );
+        return false;
+      }
+
+      showToast.error('Permission Required', `${title} permission is required to continue.`);
+      return false;
+    } catch {
+      // If permission API fails for any reason, do not block the flow.
+      return true;
+    }
+  };
+
+  const openCamera = async () => {
     if (Platform.OS === 'ios' && isEmulator) {
       showToast.info('Camera unavailable', 'iOS Simulator does not support the camera. Use Photos or test on a real iPhone.');
       return;
     }
+    if (Platform.OS === 'ios') {
+      const ok = await ensureIosPermission(PERMISSIONS.IOS.CAMERA, 'Camera');
+      if (!ok) return;
+    }
+    Keyboard.dismiss();
     launchCamera(
-      { mediaType: 'photo', maxWidth: 512, maxHeight: 512, quality: 0.6 },
+      {
+        mediaType: 'photo',
+        maxWidth: 512,
+        maxHeight: 512,
+        quality: 0.6,
+        cameraType: 'back',
+        presentationStyle: 'fullScreen',
+      } as any,
       (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
@@ -289,9 +339,20 @@ const EditProfileScreen: React.FC = () => {
     );
   };
 
-  const openLibrary = () => {
+  const openLibrary = async () => {
+    if (Platform.OS === 'ios') {
+      const ok = await ensureIosPermission(PERMISSIONS.IOS.PHOTO_LIBRARY, 'Photos');
+      if (!ok) return;
+    }
+    Keyboard.dismiss();
     launchImageLibrary(
-      { mediaType: 'photo', maxWidth: 512, maxHeight: 512, quality: 0.6 },
+      {
+        mediaType: 'photo',
+        maxWidth: 512,
+        maxHeight: 512,
+        quality: 0.6,
+        presentationStyle: 'fullScreen',
+      } as any,
       (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
@@ -643,6 +704,69 @@ const EditProfileScreen: React.FC = () => {
           </View>
         </View>
       </ScrollView>
+
+      {/* iOS: custom picker sheet to avoid black camera issues */}
+      <Modal
+        visible={Platform.OS === 'ios' && showPhotoSheet}
+        transparent
+        animationType="fade"
+        onRequestClose={closePhotoSheet}
+        onDismiss={() => {
+          const action = pendingPhotoActionRef.current;
+          pendingPhotoActionRef.current = null;
+          if (action) {
+            InteractionManager.runAfterInteractions(() => action());
+          }
+        }}>
+        <Pressable style={styles.sheetOverlay} onPress={closePhotoSheet}>
+          <Pressable style={styles.sheetContainer} onPress={() => {}}>
+            <View style={styles.sheetHeaderRow}>
+              <Text style={styles.sheetTitle}>Change photo</Text>
+              <TouchableOpacity
+                style={styles.sheetCloseButton}
+                onPress={closePhotoSheet}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Ionicons name="close" size={20} color="#0f172a" />
+              </TouchableOpacity>
+            </View>
+
+            {!isEmulator && (
+              <TouchableOpacity
+                style={styles.sheetAction}
+                onPress={() => runAfterPhotoDismiss(() => void openCamera())}
+                activeOpacity={0.8}>
+                <View style={styles.sheetActionLeft}>
+                  <View style={[styles.sheetIcon, { backgroundColor: '#f0fdf4' }]}>
+                    <Ionicons name="camera-outline" size={18} color="#166534" />
+                  </View>
+                  <Text style={styles.sheetActionText}>Take Photo</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={styles.sheetAction}
+              onPress={() => runAfterPhotoDismiss(() => void openLibrary())}
+              activeOpacity={0.8}>
+              <View style={styles.sheetActionLeft}>
+                <View style={[styles.sheetIcon, { backgroundColor: '#ecfeff' }]}>
+                  <Ionicons name="images-outline" size={18} color="#0e7490" />
+                </View>
+                <Text style={styles.sheetActionText}>Choose from Library</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sheetCancelButton}
+              onPress={closePhotoSheet}
+              activeOpacity={0.8}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -863,6 +987,83 @@ const styles = StyleSheet.create({
   radioLabel: {
     fontSize: 14,
     color: '#424242',
+  },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheetContainer: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingTop: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 18,
+  },
+  sheetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  sheetCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f1f5f9',
+  },
+  sheetAction: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    marginTop: 10,
+  },
+  sheetActionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 10,
+  },
+  sheetIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  sheetActionText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  sheetCancelButton: {
+    marginTop: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  sheetCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
   },
 });
 

@@ -40,7 +40,17 @@ const DocumentRow: React.FC<{
   const isExpired = doc.is_expired;
   const expiringSoon =
     doc.expires_in_days != null && doc.expires_in_days <= 30 && !isExpired;
-  const statusColor = isExpired ? '#c62828' : expiringSoon ? '#e65100' : '#2e7d32';
+  const hasAnyDates =
+    !!doc.start_date || !!doc.end_date || !!doc.validity_date || !!doc.expires_on;
+  const hasExpiry = doc.expires_in_days != null || !!doc.expires_on;
+
+  const statusColor = isExpired
+    ? '#c62828'
+    : expiringSoon
+      ? '#e65100'
+      : hasExpiry
+        ? '#2e7d32'
+        : '#1a237e';
 
   return (
     <View style={styles.docCard}>
@@ -54,29 +64,40 @@ const DocumentRow: React.FC<{
               ? `Expires in ${doc.expires_in_days} days`
               : doc.expires_in_days != null
               ? `${doc.expires_in_days} days left`
-              : '—'}
+              : 'On file'}
           </Text>
         </View>
       </View>
       <Text style={styles.docCategory}>{doc.category?.name ?? '—'}</Text>
-      <View style={styles.docRow}>
-        <Text style={styles.docLabel}>Start date</Text>
-        <Text style={styles.docValue}>{formatDate(doc.start_date)}</Text>
-      </View>
-      <View style={styles.docRow}>
-        <Text style={styles.docLabel}>End date</Text>
-        <Text style={styles.docValue}>{formatDate(doc.end_date)}</Text>
-      </View>
-      <View style={styles.docRow}>
-        <Text style={styles.docLabel}>Validity / Expires on</Text>
-        <Text style={styles.docValue}>{formatDate(doc.expires_on ?? doc.validity_date)}</Text>
-      </View>
-      {doc.expires_in_days != null && (
+      {hasAnyDates ? (
+        <>
+          <View style={styles.docRow}>
+            <Text style={styles.docLabel}>Start date</Text>
+            <Text style={styles.docValue}>{formatDate(doc.start_date)}</Text>
+          </View>
+          <View style={styles.docRow}>
+            <Text style={styles.docLabel}>End date</Text>
+            <Text style={styles.docValue}>{formatDate(doc.end_date)}</Text>
+          </View>
+          <View style={styles.docRow}>
+            <Text style={styles.docLabel}>Validity / Expires on</Text>
+            <Text style={styles.docValue}>
+              {formatDate(doc.expires_on ?? doc.validity_date)}
+            </Text>
+          </View>
+          {doc.expires_in_days != null && (
+            <View style={styles.docRow}>
+              <Text style={styles.docLabel}>Days until expiry</Text>
+              <Text style={[styles.docValue, isExpired && styles.docValueExpired]}>
+                {isExpired ? 'Expired' : doc.expires_in_days}
+              </Text>
+            </View>
+          )}
+        </>
+      ) : (
         <View style={styles.docRow}>
-          <Text style={styles.docLabel}>Days until expiry</Text>
-          <Text style={[styles.docValue, isExpired && styles.docValueExpired]}>
-            {isExpired ? 'Expired' : doc.expires_in_days}
-          </Text>
+          <Text style={styles.docLabel}>Dates</Text>
+          <Text style={styles.docValue}>No dates provided</Text>
         </View>
       )}
     </View>

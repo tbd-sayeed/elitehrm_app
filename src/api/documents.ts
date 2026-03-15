@@ -46,8 +46,8 @@ export interface DocumentUploadResponse {
   data?: DocumentItem;
 }
 
-/** Max file size 5MB */
-export const DOCUMENT_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+/** Max file size 10MB (must match backend validation) */
+export const DOCUMENT_MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 /**
  * List my documents
@@ -94,6 +94,53 @@ export const uploadDocument = async (
 
   if (!response.ok) {
     const err = new Error(data.message || 'Upload failed');
+    (err as any).response = { data };
+    throw err;
+  }
+
+  return data;
+};
+
+/**
+ * Replace/update an existing document (multipart/form-data)
+ * Uses POST with _method=PUT for Laravel/PHP compatibility.
+ */
+export const updateDocument = async (
+  documentId: number,
+  formData: FormData,
+  _onUploadProgress?: (progress: number) => void
+): Promise<DocumentUploadResponse> => {
+  const token = await tokenStorage.getAccessToken();
+  const url = `${API_BASE_URL}${API_ENDPOINTS.DOCUMENTS.UPDATE(documentId)}`;
+
+  // Laravel: make it a PUT via method override
+  formData.append('_method', 'PUT');
+
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  let data: DocumentUploadResponse;
+  try {
+    data = await response.json();
+  } catch {
+    data = {
+      success: false,
+      message: response.statusText || 'Update failed',
+    };
+  }
+
+  if (!response.ok) {
+    const err = new Error(data.message || 'Update failed');
     (err as any).response = { data };
     throw err;
   }

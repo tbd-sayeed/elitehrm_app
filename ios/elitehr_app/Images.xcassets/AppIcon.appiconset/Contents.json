@@ -1,105 +1,105 @@
 {
   "images" : [
     {
-      "filename" : "icon_40.png",
+      "filename" : "icon_40.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "2x",
       "size" : "20x20"
     },
     {
-      "filename" : "icon_60.png",
+      "filename" : "icon_60.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "3x",
       "size" : "20x20"
     },
     {
-      "filename" : "icon_58 1.png",
+      "filename" : "icon_58.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "2x",
       "size" : "29x29"
     },
     {
-      "filename" : "icon_87.png",
+      "filename" : "icon_87.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "3x",
       "size" : "29x29"
     },
     {
-      "filename" : "icon_76.png",
+      "filename" : "icon_76.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "2x",
       "size" : "38x38"
     },
     {
-      "filename" : "icon_114.png",
+      "filename" : "icon_114.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "3x",
       "size" : "38x38"
     },
     {
-      "filename" : "icon_80.png",
+      "filename" : "icon_80.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "2x",
       "size" : "40x40"
     },
     {
-      "filename" : "icon_120.png",
+      "filename" : "icon_120.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "3x",
       "size" : "40x40"
     },
     {
-      "filename" : "icon_120 1.png",
+      "filename" : "icon_120 1.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "2x",
       "size" : "60x60"
     },
     {
-      "filename" : "icon_180.png",
+      "filename" : "icon_180.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "3x",
       "size" : "60x60"
     },
     {
-      "filename" : "icon_128.png",
+      "filename" : "icon_128.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "2x",
       "size" : "64x64"
     },
     {
-      "filename" : "icon_192.png",
+      "filename" : "icon_192.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "3x",
       "size" : "64x64"
     },
     {
-      "filename" : "icon_136.png",
+      "filename" : "icon_136.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "2x",
       "size" : "68x68"
     },
     {
-      "filename" : "icon_152.png",
+      "filename" : "icon_152.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "2x",
       "size" : "76x76"
     },
     {
-      "filename" : "icon_167.png",
+      "filename" : "icon_167.jpg",
       "idiom" : "universal",
       "platform" : "ios",
       "scale" : "2x",

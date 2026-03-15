@@ -3,7 +3,7 @@
  * @format
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   Pressable,
   Platform,
   TextInput,
+  InteractionManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -31,7 +32,7 @@ import {
   isErrorWithCode,
 } from '@react-native-documents/picker';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { uploadDocument, listDocuments } from '../../api/documents';
+import { uploadDocument, updateDocument, listDocuments } from '../../api/documents';
 import { showToast } from '../../utils/toast';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import DeviceInfo from 'react-native-device-info';
@@ -113,6 +114,9 @@ const UploadDocumentScreen: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showFileSheet, setShowFileSheet] = useState(false);
   const [isEmulator, setIsEmulator] = useState(false);
+  const [isPicking, setIsPicking] = useState(false);
+  const isPickingRef = useRef(false);
+  const pendingPickerActionRef = useRef<null | (() => void)>(null);
 
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
@@ -122,21 +126,44 @@ const UploadDocumentScreen: React.FC = () => {
   }, []);
 
   const onPickImage = (launcher: typeof launchCamera | typeof launchImageLibrary) => {
-    launcher(IMAGE_OPTIONS, (response) => {
-      if (response.didCancel) return;
+    if (isPickingRef.current) return;
+    isPickingRef.current = true;
+    setIsPicking(true);
+    const options =
+      launcher === launchCamera
+        ? { ...IMAGE_OPTIONS, cameraType: 'back' as const, presentationStyle: 'fullScreen' as const }
+        : { ...IMAGE_OPTIONS, presentationStyle: 'fullScreen' as const };
+
+    launcher(options as any, (response) => {
+      if (response.didCancel) {
+        isPickingRef.current = false;
+        setIsPicking(false);
+        return;
+      }
       if (response.errorCode) {
         showToast.error('Error', response.errorMessage || 'Could not open camera or photos');
+        isPickingRef.current = false;
+        setIsPicking(false);
         return;
       }
       const asset = response.assets?.[0];
-      if (!asset?.uri) return;
+      if (!asset?.uri) {
+        isPickingRef.current = false;
+        setIsPicking(false);
+        return;
+      }
       const type = asset.type || 'image/jpeg';
       const name = asset.fileName || `document_${Date.now()}.jpg`;
       setFile({ uri: asset.uri, type, name });
+      isPickingRef.current = false;
+      setIsPicking(false);
     });
   };
 
   const onPickFile = async () => {
+    if (isPickingRef.current) return;
+    isPickingRef.current = true;
+    setIsPicking(true);
     try {
       const result = await pick({
         type: [types.pdf, types.images, types.doc, types.docx],
@@ -151,30 +178,54 @@ const UploadDocumentScreen: React.FC = () => {
         });
       }
     } catch (err: unknown) {
+      const maybeMessage =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : '';
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      // Avoid surfacing iOS internal "previous promise/picker still open" warnings as an error toast.
+      if (typeof maybeMessage === 'string' && maybeMessage.toLowerCase().includes('previous')) return;
       showToast.error(
         'Error',
         err instanceof Error ? err.message : 'Could not open file picker'
       );
+    } finally {
+      isPickingRef.current = false;
+      setIsPicking(false);
     }
   };
 
   const closeFileSheet = () => setShowFileSheet(false);
 
-  const showFileOptions = () => setShowFileSheet(true);
+  const showFileOptions = () => {
+    if (isPickingRef.current) return;
+    setShowFileSheet(true);
+  };
+
+  const runAfterDismiss = (fn: () => void) => {
+    // Store pending action and close the sheet; we'll run it in Modal.onDismiss (iOS)
+    // and also via a timeout fallback (Android).
+    pendingPickerActionRef.current = fn;
+    closeFileSheet();
+
+    if (Platform.OS !== 'ios') {
+      setTimeout(() => {
+        const action = pendingPickerActionRef.current;
+        pendingPickerActionRef.current = null;
+        if (action) {
+          InteractionManager.runAfterInteractions(() => action());
+        }
+      }, 200);
+    }
+  };
 
   const chooseFile = () => {
-    closeFileSheet();
-    void onPickFile();
+    runAfterDismiss(() => void onPickFile());
   };
 
   const chooseFromGallery = () => {
-    closeFileSheet();
-    onPickImage(launchImageLibrary);
+    runAfterDismiss(() => onPickImage(launchImageLibrary));
   };
 
   const takePhoto = () => {
-    closeFileSheet();
     if (Platform.OS === 'ios' && isEmulator) {
       showToast.info(
         'Camera unavailable',
@@ -182,7 +233,7 @@ const UploadDocumentScreen: React.FC = () => {
       );
       return;
     }
-    onPickImage(launchCamera);
+    runAfterDismiss(() => onPickImage(launchCamera));
   };
 
   const buildFormData = (): FormData => {
@@ -236,8 +287,21 @@ const UploadDocumentScreen: React.FC = () => {
     setUploadProgress(0);
     try {
       const formData = buildFormData();
-      await uploadDocument(formData, setUploadProgress);
-      showToast.success('Uploaded', 'Your document has been submitted.');
+
+      // If this category already has a document, update/replace the most recent one.
+      const existingDocs = user?.documents?.items ?? [];
+      const existingForCategory = existingDocs
+        .filter((d: any) => Number(d?.category?.id) === Number(categoryId))
+        .sort((a: any, b: any) => Number(b?.id ?? 0) - Number(a?.id ?? 0));
+      const existingId = existingForCategory[0]?.id ? Number(existingForCategory[0].id) : null;
+
+      if (existingId) {
+        await updateDocument(existingId, formData, setUploadProgress);
+        showToast.success('Updated', 'Your document has been replaced.');
+      } else {
+        await uploadDocument(formData, setUploadProgress);
+        showToast.success('Uploaded', 'Your document has been submitted.');
+      }
 
       // Refresh documents list and update store so Dashboard and Documents screen stay in sync
       try {
@@ -420,7 +484,15 @@ const UploadDocumentScreen: React.FC = () => {
         visible={showFileSheet}
         transparent
         animationType="fade"
-        onRequestClose={closeFileSheet}>
+        onRequestClose={closeFileSheet}
+        onDismiss={() => {
+          // iOS: guaranteed the modal finished dismissing here.
+          const action = pendingPickerActionRef.current;
+          pendingPickerActionRef.current = null;
+          if (action) {
+            InteractionManager.runAfterInteractions(() => action());
+          }
+        }}>
         <Pressable style={styles.sheetOverlay} onPress={closeFileSheet}>
           <Pressable style={styles.sheetContainer} onPress={() => {}}>
             <View style={styles.sheetHeaderRow}>
@@ -441,7 +513,11 @@ const UploadDocumentScreen: React.FC = () => {
             </Text>
 
             <View style={styles.sheetActions}>
-              <TouchableOpacity style={styles.sheetAction} onPress={chooseFile} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.sheetAction}
+                onPress={chooseFile}
+                activeOpacity={0.8}
+                disabled={isPicking}>
                 <View style={styles.sheetActionLeft}>
                   <View style={[styles.sheetIcon, { backgroundColor: '#eef2ff' }]}>
                     <Ionicons name="document-text-outline" size={18} color="#1a237e" />
@@ -457,7 +533,8 @@ const UploadDocumentScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.sheetAction}
                 onPress={chooseFromGallery}
-                activeOpacity={0.8}>
+                activeOpacity={0.8}
+                disabled={isPicking}>
                 <View style={styles.sheetActionLeft}>
                   <View style={[styles.sheetIcon, { backgroundColor: '#ecfeff' }]}>
                     <Ionicons name="images-outline" size={18} color="#0e7490" />
