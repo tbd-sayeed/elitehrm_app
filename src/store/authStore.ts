@@ -22,9 +22,24 @@ export interface EmergencyContact {
   relation: string;
 }
 
+export interface BankDetails {
+  account_holder_name: string | null;
+  sort_code: string | null;
+  account_number: string | null;
+  bank_name: string | null;
+}
+
+export interface GpInformation {
+  gp_name: string | null;
+  address: string | null;
+  telephone: string | null;
+  medical_information: string | null;
+}
+
 export interface EmployeeDocument {
   id: number;
   name: string;
+  description?: string | null;
   category: { id: number; name: string };
   start_date: string | null;
   end_date: string | null;
@@ -33,6 +48,12 @@ export interface EmployeeDocument {
   expires_in_days: number | null;
   is_expired: boolean;
   expiry_source?: string;
+  file_name?: string | null;
+  file_size?: number | null;
+  mime_type?: string | null;
+  file_url?: string | null;
+  download_url?: string | null;
+  permission?: any;
 }
 
 export interface EmployeeDocumentCategory {
@@ -76,6 +97,8 @@ export interface Employee {
   }>;
   places_of_work?: PlaceOfWork[];
   emergency_contact?: EmergencyContact | null;
+  bank_details?: BankDetails | null;
+  gp_information?: GpInformation | null;
   documents?: EmployeeDocumentsData;
   document_categories?: EmployeeDocumentCategoriesData;
   [key: string]: any; // Allow additional fields

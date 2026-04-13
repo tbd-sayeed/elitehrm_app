@@ -16,6 +16,8 @@ import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import DocumentsScreen from '../screens/profile/DocumentsScreen';
 import UploadDocumentScreen from '../screens/profile/UploadDocumentScreen';
+import DocumentDetailScreen from '../screens/profile/DocumentDetailScreen';
+import BankGpDetailsScreen from '../screens/profile/BankGpDetailsScreen';
 import AttendanceListScreen from '../screens/attendance/AttendanceListScreen';
 import TimesheetDetailScreen from '../screens/attendance/TimesheetDetailScreen';
 import LeaveListScreen from '../screens/leave/LeaveListScreen';
@@ -29,6 +31,8 @@ export type MainStackParamList = {
   EditProfile: undefined;
   Documents: undefined;
   UploadDocument: { categoryId?: number };
+  DocumentDetail: { documentId: number };
+  BankGpDetails: undefined;
   AttendanceList: undefined;
   TimesheetDetail: undefined;
   LeaveList: undefined;
@@ -84,6 +88,8 @@ const ProfileStack: React.FC = () => (
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="Documents" component={DocumentsScreen} />
     <Stack.Screen name="UploadDocument" component={UploadDocumentScreen} />
+    <Stack.Screen name="DocumentDetail" component={DocumentDetailScreen} />
+    <Stack.Screen name="BankGpDetails" component={BankGpDetailsScreen} />
   </Stack.Navigator>
 );
 

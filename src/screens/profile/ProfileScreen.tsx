@@ -62,6 +62,9 @@ const ProfileScreen: React.FC = () => {
     photoUrl: user?.photo_url,
     placesOfWork: user?.places_of_work ?? [],
     emergencyContact: user?.emergency_contact,
+    spouse: user?.spouse ?? null,
+    bankDetails: user?.bank_details ?? null,
+    gpInformation: user?.gp_information ?? null,
   };
 
   const onRefresh = React.useCallback(() => {
@@ -78,6 +81,10 @@ const ProfileScreen: React.FC = () => {
 
   const handleViewDocuments = () => {
     navigation.navigate('Documents');
+  };
+
+  const handleEditBankGp = () => {
+    navigation.navigate('BankGpDetails');
   };
 
   const openUrl = async (url: string) => {
@@ -116,6 +123,45 @@ const ProfileScreen: React.FC = () => {
     } catch {
       return dateString;
     }
+  };
+
+  const spouseStatusLabel = () => {
+    const s: any = profileData.spouse;
+    if (!s) return 'Not provided';
+    const hasAny =
+      Boolean(s.name) ||
+      Boolean(s.date_of_birth) ||
+      Boolean(s.passport_number) ||
+      Boolean(s.phone);
+    return hasAny ? 'On file' : 'Not provided';
+  };
+
+  const bankStatusLabel = () => {
+    const b: any = profileData.bankDetails;
+    if (!b) return 'Not provided';
+    const hasAny =
+      Boolean(b.account_holder_name) ||
+      Boolean(b.sort_code) ||
+      Boolean(b.account_number) ||
+      Boolean(b.bank_name);
+    return hasAny ? 'On file' : 'Not provided';
+  };
+
+  const gpStatusLabel = () => {
+    const g: any = profileData.gpInformation;
+    if (!g) return 'Not provided';
+    const hasAny =
+      Boolean(g.gp_name) ||
+      Boolean(g.address) ||
+      Boolean(g.telephone) ||
+      Boolean(g.medical_information);
+    return hasAny ? 'On file' : 'Not provided';
+  };
+
+  const maskAccountNumber = (value: string) => {
+    const s = String(value || '').replace(/\s+/g, '');
+    if (s.length <= 4) return s || '—';
+    return `•••• ${s.slice(-4)}`;
   };
 
   const getInitials = () => {
@@ -281,6 +327,139 @@ const ProfileScreen: React.FC = () => {
             </View>
           </View>
         )}
+
+        {/* Spouse Details (Optional) */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Spouse Details (Optional)</Text>
+          {!profileData.spouse ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Status</Text>
+              <Text style={styles.infoValue}>{spouseStatusLabel()}</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Name</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.spouse as any)?.name ?? '—'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Date of Birth</Text>
+                <Text style={styles.infoValue}>
+                  {formatDate((profileData.spouse as any)?.date_of_birth ?? '—')}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Passport Number</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.spouse as any)?.passport_number ?? '—'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Phone</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.spouse as any)?.phone ?? '—'}
+                </Text>
+              </View>
+              <View style={[styles.infoRow, { borderBottomWidth: 0, paddingBottom: 0, marginBottom: 0 }]}>
+                <Text style={styles.infoLabel}>Status</Text>
+                <Text style={styles.infoValue}>{spouseStatusLabel()}</Text>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Bank Details & GP Information */}
+        <View style={styles.card}>
+          <View style={styles.cardTitleRow}>
+            <Text style={styles.cardTitleNoBorder}>Bank Details & GP Information</Text>
+            <TouchableOpacity
+              style={styles.cardIconBtn}
+              onPress={handleEditBankGp}
+              activeOpacity={0.8}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="create-outline" size={18} color="#1a237e" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.cardDivider} />
+
+          <Text style={styles.subTitle}>Bank details</Text>
+          {!profileData.bankDetails ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Status</Text>
+              <Text style={styles.infoValue}>{bankStatusLabel()}</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Account holder</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.bankDetails as any)?.account_holder_name ?? '—'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Bank name</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.bankDetails as any)?.bank_name ?? '—'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Sort code</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.bankDetails as any)?.sort_code ?? '—'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Account number</Text>
+                <Text style={styles.infoValue}>
+                  {maskAccountNumber((profileData.bankDetails as any)?.account_number)}
+                </Text>
+              </View>
+              <View style={[styles.infoRow, { borderBottomWidth: 0, paddingBottom: 0, marginBottom: 0 }]}>
+                <Text style={styles.infoLabel}>Status</Text>
+                <Text style={styles.infoValue}>{bankStatusLabel()}</Text>
+              </View>
+            </>
+          )}
+
+          <View style={styles.blockDivider} />
+
+          <Text style={styles.subTitle}>GP information</Text>
+          {!profileData.gpInformation ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Status</Text>
+              <Text style={styles.infoValue}>{gpStatusLabel()}</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>GP name</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.gpInformation as any)?.gp_name ?? '—'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Telephone</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.gpInformation as any)?.telephone ?? '—'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Address</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.gpInformation as any)?.address ?? '—'}
+                </Text>
+              </View>
+              <View style={[styles.infoRow, { borderBottomWidth: 0, paddingBottom: 0, marginBottom: 0 }]}>
+                <Text style={styles.infoLabel}>Medical info</Text>
+                <Text style={styles.infoValue}>
+                  {(profileData.gpInformation as any)?.medical_information ?? '—'}
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
 
         {/* My Documents */}
         <TouchableOpacity
@@ -456,6 +635,44 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     paddingBottom: 12,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardTitleNoBorder: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#212121',
+    flex: 1,
+    paddingRight: 12,
+  },
+  cardIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#eef2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardDivider: {
+    marginTop: 12,
+    marginBottom: 14,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  blockDivider: {
+    marginTop: 16,
+    marginBottom: 16,
+    height: 1,
+    backgroundColor: '#f1f5f9',
+  },
+  subTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 10,
   },
   infoRow: {
     flexDirection: 'row',

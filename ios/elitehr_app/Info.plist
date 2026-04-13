@@ -12,8 +12,6 @@
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>uk.org.elitementors.elitehr</string>
-  <key>ITSAppUsesNonExemptEncryption</key>
-  <false/>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -26,6 +24,8 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -35,6 +35,12 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>EliteHR uses your camera so you can take a profile photo and capture document photos (for example, a passport or employee contract) to upload to your HR profile.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>EliteHR can save a photo you take (for example, a document photo) to your photo library if you choose to keep a copy on your device.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>EliteHR needs access to your photo library so you can choose a profile photo or upload document images (for example, a passport or right-to-work document) to your HR profile.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>
@@ -60,11 +66,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-  <key>NSPhotoLibraryUsageDescription</key>
-  <string>EliteHR needs access to your photo library so you can choose a profile photo or upload document images (for example, a passport or right-to-work document) to your HR profile.</string>
-  <key>NSPhotoLibraryAddUsageDescription</key>
-  <string>EliteHR can save a photo you take (for example, a document photo) to your photo library if you choose to keep a copy on your device.</string>
-  <key>NSCameraUsageDescription</key>
-  <string>EliteHR uses your camera so you can take a profile photo and capture document photos (for example, a passport or employee contract) to upload to your HR profile.</string>
 </dict>
 </plist>

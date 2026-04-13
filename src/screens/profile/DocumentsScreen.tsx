@@ -36,7 +36,8 @@ const formatDate = (dateStr: string | null): string => {
 
 const DocumentRow: React.FC<{
   doc: EmployeeDocument;
-}> = ({ doc }) => {
+  onPress?: (documentId: number) => void;
+}> = ({ doc, onPress }) => {
   const isExpired = doc.is_expired;
   const expiringSoon =
     doc.expires_in_days != null && doc.expires_in_days <= 30 && !isExpired;
@@ -53,7 +54,10 @@ const DocumentRow: React.FC<{
         : '#1a237e';
 
   return (
-    <View style={styles.docCard}>
+    <TouchableOpacity
+      style={styles.docCard}
+      onPress={() => onPress?.(doc.id)}
+      activeOpacity={0.8}>
       <View style={styles.docHeader}>
         <Text style={styles.docName}>{doc.name}</Text>
         <View style={[styles.badge, { backgroundColor: statusColor }]}>
@@ -100,7 +104,11 @@ const DocumentRow: React.FC<{
           <Text style={styles.docValue}>No dates provided</Text>
         </View>
       )}
-    </View>
+      <View style={styles.docFooter}>
+        <Text style={styles.docFooterText}>Tap to view / update</Text>
+        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -162,6 +170,10 @@ const DocumentsScreen: React.FC = () => {
 
   const handleUploadDocument = (categoryId?: number) => {
     navigation.navigate('UploadDocument', categoryId != null ? { categoryId } : {});
+  };
+
+  const handleOpenDocument = (documentId: number) => {
+    navigation.navigate('DocumentDetail', { documentId });
   };
 
   return (
@@ -233,7 +245,7 @@ const DocumentsScreen: React.FC = () => {
               Start date, end date, validity and days until expiry.
             </Text>
             {documents.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} />
+              <DocumentRow key={doc.id} doc={doc} onPress={handleOpenDocument} />
             ))}
           </View>
         )}
@@ -394,6 +406,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 4,
+  },
+  docFooter: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  docFooterText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
   },
   docLabel: {
     fontSize: 13,

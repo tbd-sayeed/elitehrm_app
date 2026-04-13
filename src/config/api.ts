@@ -34,9 +34,25 @@ const getBaseURL = (): string => {
 
 export const API_BASE_URL = getBaseURL();
 
+/**
+ * Public API base (non-employee scoped)
+ * Example:
+ * - Employee base: https://.../api/v1/employee
+ * - Public base:   https://.../api/v1
+ */
+export const API_PUBLIC_BASE_URL = (() => {
+  const s = API_BASE_URL;
+  if (s.endsWith('/employee')) return s.slice(0, -'/employee'.length);
+  if (s.endsWith('/employee/')) return s.slice(0, -'/employee/'.length);
+  return s.replace(/\/employee\/?$/, '');
+})();
+
 export const API_TIMEOUT = 30000; // 30 seconds
 
 export const API_ENDPOINTS = {
+  PUBLIC: {
+    APP_VERSION: '/app-version',
+  },
   // Authentication
   AUTH: {
     VERIFY_EMAIL: '/auth/verify-email',
@@ -68,10 +84,15 @@ export const API_ENDPOINTS = {
   },
   // Documents
   DOCUMENTS: {
+    CATEGORIES: '/document-categories',
     LIST: '/documents',
     UPLOAD: '/documents',
+    SHOW: (id: number) => `/documents/${id}`,
     UPDATE: (id: number) => `/documents/${id}`,
     DOWNLOAD: (id: number) => `/documents/${id}/download`,
+  },
+  BANK_GP: {
+    DETAILS: '/bank-gp-details',
   },
 } as const;
 

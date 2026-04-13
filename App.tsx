@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import AppNavigator from './src/navigation/AppNavigator';
+import AppUpdateGate from './src/components/AppUpdateGate';
 
 import { NewAppScreen } from '@react-native/new-app-screen';
 import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
@@ -47,6 +48,7 @@ function App() : React.JSX.Element{
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
+          <AppUpdateGate />
           <AppNavigator />
           <Toast />
         </SafeAreaProvider>

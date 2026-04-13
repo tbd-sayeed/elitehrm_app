@@ -16,6 +16,10 @@ export interface UpdateProfileRequest {
   emergency_contact_full_name?: string;
   emergency_contact_phone?: string;
   emergency_contact_relation?: string;
+  spouse_name?: string;
+  spouse_date_of_birth?: string;
+  spouse_passport_number?: string;
+  spouse_phone?: string;
   address?: string;
   city?: string;
   postcode?: string;
@@ -41,6 +45,12 @@ export interface ProfileResponse {
       phone: string;
       relation: string;
     };
+    spouse?: {
+      name: string | null;
+      date_of_birth: string | null;
+      passport_number: string | null;
+      phone: string | null;
+    } | null;
     photo_url?: string | null;
     date_of_birth?: string;
     gender?: string;

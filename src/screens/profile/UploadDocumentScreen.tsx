@@ -32,7 +32,7 @@ import {
   isErrorWithCode,
 } from '@react-native-documents/picker';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { uploadDocument, updateDocument, listDocuments } from '../../api/documents';
+import { uploadDocument, updateDocument, listDocuments, listDocumentCategories } from '../../api/documents';
 import { showToast } from '../../utils/toast';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import DeviceInfo from 'react-native-device-info';
@@ -98,7 +98,10 @@ const UploadDocumentScreen: React.FC = () => {
   const route = useRoute<UploadDocumentRouteProp>();
   const { user, updateUser } = useAuthStore();
 
-  const categories: EmployeeDocumentCategory[] = user?.document_categories?.items ?? [];
+  const storeCategories: EmployeeDocumentCategory[] = user?.document_categories?.items ?? [];
+  const [remoteCategories, setRemoteCategories] = useState<EmployeeDocumentCategory[]>([]);
+  const categories: EmployeeDocumentCategory[] =
+    storeCategories.length > 0 ? storeCategories : remoteCategories;
   const preselectedCategoryId = route.params?.categoryId;
 
   const [categoryId, setCategoryId] = useState<number | null>(
@@ -124,6 +127,38 @@ const UploadDocumentScreen: React.FC = () => {
       .then((v) => setIsEmulator(Boolean(v)))
       .catch(() => setIsEmulator(false));
   }, []);
+
+  useEffect(() => {
+    if (storeCategories.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await listDocumentCategories();
+        const data: any = res?.data;
+        const items: any[] =
+          Array.isArray(data) ? data :
+          Array.isArray(data?.items) ? data.items :
+          Array.isArray(data?.categories) ? data.categories :
+          [];
+        const mapped: EmployeeDocumentCategory[] = items.map((c: any) => ({
+          id: Number(c.id),
+          name: String(c.name),
+          description: c.description ?? null,
+          has_document: Boolean(c.has_document),
+          documents_count: Number(c.documents_count ?? 0),
+          soonest_expires_on: c.soonest_expires_on ?? null,
+          soonest_expires_in_days:
+            c.soonest_expires_in_days != null ? Number(c.soonest_expires_in_days) : null,
+        }));
+        if (!cancelled) setRemoteCategories(mapped);
+      } catch {
+        // Non-blocking
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [storeCategories.length]);
 
   const onPickImage = (launcher: typeof launchCamera | typeof launchImageLibrary) => {
     if (isPickingRef.current) return;

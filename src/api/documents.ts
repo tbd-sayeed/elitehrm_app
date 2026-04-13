@@ -20,6 +20,7 @@ export interface DocumentCategory {
 export interface DocumentItem {
   id: number;
   name: string;
+  description?: string | null;
   category: { id: number; name: string };
   start_date: string | null;
   end_date: string | null;
@@ -28,6 +29,12 @@ export interface DocumentItem {
   expires_in_days: number | null;
   is_expired: boolean;
   expiry_source?: string;
+  file_name?: string | null;
+  file_size?: number | null;
+  mime_type?: string | null;
+  file_url?: string | null;
+  download_url?: string | null;
+  permission?: any;
 }
 
 export interface DocumentsListResponse {
@@ -40,20 +47,55 @@ export interface DocumentsListResponse {
   };
 }
 
+export interface DocumentCategoriesResponse {
+  success: boolean;
+  data?: {
+    items?: DocumentCategory[];
+    categories?: DocumentCategory[];
+  } | DocumentCategory[];
+  message?: string;
+}
+
 export interface DocumentUploadResponse {
   success: boolean;
   message: string;
   data?: DocumentItem;
 }
 
+export interface DocumentShowResponse {
+  success: boolean;
+  data?: DocumentItem;
+  message?: string;
+}
+
 /** Max file size 10MB (must match backend validation) */
 export const DOCUMENT_MAX_SIZE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * List HR-defined document categories for my company
+ */
+export const listDocumentCategories = async (): Promise<DocumentCategoriesResponse> => {
+  const response = await apiClient.get<DocumentCategoriesResponse>(
+    API_ENDPOINTS.DOCUMENTS.CATEGORIES
+  );
+  return response.data;
+};
 
 /**
  * List my documents
  */
 export const listDocuments = async (): Promise<DocumentsListResponse> => {
   const response = await apiClient.get<DocumentsListResponse>(API_ENDPOINTS.DOCUMENTS.LIST);
+  return response.data;
+};
+
+/**
+ * Get one document by id
+ */
+export const getDocument = async (documentId: number): Promise<DocumentShowResponse> => {
+  const response = await apiClient.get<DocumentShowResponse>(
+    API_ENDPOINTS.DOCUMENTS.SHOW(documentId)
+  );
   return response.data;
 };
 

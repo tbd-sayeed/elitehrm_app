@@ -53,6 +53,10 @@ const initialFormData = {
   homePhone: '',
   mobilePhone: '',
   dateOfBirth: '',
+  spouseName: '',
+  spouseDateOfBirth: '',
+  spousePassportNumber: '',
+  spousePhone: '',
   address: '',
   city: '',
   postcode: '',
@@ -95,6 +99,7 @@ const EditProfileScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showSpouseDatePicker, setShowSpouseDatePicker] = useState(false);
   const [photoPreviewUri, setPhotoPreviewUri] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isEmulator, setIsEmulator] = useState(false);
@@ -110,6 +115,10 @@ const EditProfileScreen: React.FC = () => {
         homePhone: user.home_phone ?? '',
         mobilePhone: user.mobile_phone ?? user.phone ?? '',
         dateOfBirth: user.date_of_birth ?? '',
+        spouseName: user.spouse?.name ?? '',
+        spouseDateOfBirth: user.spouse?.date_of_birth ?? '',
+        spousePassportNumber: user.spouse?.passport_number ?? '',
+        spousePhone: user.spouse?.phone ?? '',
         address: user.address ?? '',
         city: user.city ?? '',
         postcode: user.postcode ?? '',
@@ -131,6 +140,21 @@ const EditProfileScreen: React.FC = () => {
       .catch(() => setIsEmulator(false));
   }, []);
 
+  const spouseFromForm = () => {
+    const name = (formData as any).spouseName?.trim?.() ?? '';
+    const dob = (formData as any).spouseDateOfBirth?.trim?.() ?? '';
+    const passport = (formData as any).spousePassportNumber?.trim?.() ?? '';
+    const phone = (formData as any).spousePhone?.trim?.() ?? '';
+
+    if (!name && !dob && !passport && !phone) return null;
+    return {
+      name: name || null,
+      date_of_birth: dob || null,
+      passport_number: passport || null,
+      phone: phone || null,
+    };
+  };
+
   const handleSave = async () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       Alert.alert('Validation Error', 'First Name and Last Name are required');
@@ -148,6 +172,10 @@ const EditProfileScreen: React.FC = () => {
         emergency_contact_full_name: formData.emergencyContactName.trim() || undefined,
         emergency_contact_phone: formData.emergencyContactPhone.trim() || undefined,
         emergency_contact_relation: formData.emergencyContactRelation.trim() || undefined,
+        spouse_name: (formData as any).spouseName?.trim?.() ?? '',
+        spouse_date_of_birth: (formData as any).spouseDateOfBirth?.trim?.() ?? '',
+        spouse_passport_number: (formData as any).spousePassportNumber?.trim?.() ?? '',
+        spouse_phone: (formData as any).spousePhone?.trim?.() ?? '',
         address: formData.address.trim() || undefined,
         city: formData.city.trim() || undefined,
         postcode: formData.postcode.trim() || undefined,
@@ -175,6 +203,7 @@ const EditProfileScreen: React.FC = () => {
                 relation: formData.emergencyContactRelation.trim(),
               }
             : null,
+          spouse: (r as any).spouse ?? spouseFromForm(),
           photo_url: r.photo_url,
           date_of_birth: formData.dateOfBirth.trim(),
           gender: formData.gender.trim()
@@ -700,6 +729,88 @@ const EditProfileScreen: React.FC = () => {
               placeholderTextColor="#9e9e9e"
               value={formData.emergencyContactRelation}
               onChangeText={(value) => updateField('emergencyContactRelation', value)}
+            />
+          </View>
+        </View>
+
+        {/* Spouse Details (Optional) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Spouse Details (Optional)</Text>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter spouse name"
+              placeholderTextColor="#9e9e9e"
+              value={(formData as any).spouseName}
+              onChangeText={(value) => updateField('spouseName', value)}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Date of Birth</Text>
+            <TouchableOpacity
+              style={styles.datePickerTouchable}
+              onPress={() => setShowSpouseDatePicker(true)}
+              activeOpacity={0.7}>
+              <Text
+                style={[
+                  styles.datePickerText,
+                  !(formData as any).spouseDateOfBirth && styles.datePickerPlaceholder,
+                ]}>
+                {(formData as any).spouseDateOfBirth
+                  ? formatDateForDisplay((formData as any).spouseDateOfBirth)
+                  : 'Select date'}
+              </Text>
+              <Text style={styles.datePickerIcon}>📅</Text>
+            </TouchableOpacity>
+            {showSpouseDatePicker && (
+              <DateTimePicker
+                value={parseDate((formData as any).spouseDateOfBirth)}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                onChange={(_, selectedDate) => {
+                  setShowSpouseDatePicker(Platform.OS === 'ios');
+                  if (selectedDate) {
+                    updateField('spouseDateOfBirth', formatDateForApi(selectedDate));
+                  }
+                }}
+                maximumDate={new Date()}
+              />
+            )}
+            {Platform.OS === 'ios' && showSpouseDatePicker && (
+              <View style={styles.datePickerActions}>
+                <TouchableOpacity
+                  style={styles.datePickerDoneBtn}
+                  onPress={() => setShowSpouseDatePicker(false)}>
+                  <Text style={styles.datePickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Passport Number</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter passport number"
+              placeholderTextColor="#9e9e9e"
+              value={(formData as any).spousePassportNumber}
+              onChangeText={(value) => updateField('spousePassportNumber', value)}
+              autoCapitalize="characters"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Phone</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter spouse phone"
+              placeholderTextColor="#9e9e9e"
+              value={(formData as any).spousePhone}
+              onChangeText={(value) => updateField('spousePhone', value)}
+              keyboardType="phone-pad"
             />
           </View>
         </View>
