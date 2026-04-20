@@ -136,6 +136,12 @@ export interface DashboardData {
       total_remaining: number;
       year: string;
     };
+    leave_year?: {
+      home_card_period_line?: string | null;
+      home_card_period_detail?: string | null;
+      balances_screen_title?: string | null;
+      label?: string | null;
+    };
     by_policy: Array<{
       time_off_policy_id: number;
       policy_name: string;

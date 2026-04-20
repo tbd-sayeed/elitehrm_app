@@ -35,11 +35,66 @@ const calcDays = (start: string, end: string) => {
   return diff + 1;
 };
 
+const formatDaysText = (value: unknown, fallbackDays: number) => {
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (s && !Number.isNaN(Number(s))) return s;
+    const match = s.match(/-?\d+(?:\.\d+)?/);
+    if (match?.[0]) return match[0];
+  }
+  if (typeof value === 'number') {
+    if (Number.isFinite(value)) return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  }
+  return String(fallbackDays);
+};
+
+const isNumericLike = (v: unknown) => {
+  if (typeof v === 'number') return Number.isFinite(v);
+  if (typeof v === 'string') {
+    const s = v.trim();
+    if (!s) return false;
+    return !Number.isNaN(Number(s)) || Boolean(s.match(/-?\d+(?:\.\d+)?/));
+  }
+  return false;
+};
+
+const getApiDays = (item: any) => {
+  const direct =
+    item?.total_days ??
+    item?.number_of_days ??
+    item?.days ??
+    item?.duration ??
+    item?.totalDays ??
+    item?.total_days_requested ??
+    item?.days_requested ??
+    item?.requested_days ??
+    item?.leave_days ??
+    item?.leaveDays ??
+    null;
+
+  if (direct != null) return direct;
+
+  // Last resort: scan unknown key names (backend variations)
+  try {
+    const entries = Object.entries(item || {});
+    for (const [k, v] of entries) {
+      const key = String(k).toLowerCase();
+      if (key.includes('day') && !key.includes('start') && !key.includes('end') && isNumericLike(v)) {
+        return v;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
 const LeaveDetailScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<LeaveDetailNavigationProp>();
   const route = useRoute<LeaveDetailRouteProp>();
   const leaveId = route.params?.id || '';
+  const daysTextFromList = route.params?.daysText;
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +102,7 @@ const LeaveDetailScreen: React.FC = () => {
     policyName: string;
     startDate: string;
     endDate: string;
-    days: number;
+    daysText: string;
     status: string;
     comments: string | null;
     createdAt: string | null;
@@ -67,11 +122,14 @@ const LeaveDetailScreen: React.FC = () => {
       const response = await getLeaveDetail(leaveId);
       if (response.success && response.data) {
         const d = response.data;
+        const fallback = calcDays(d.start_date, d.end_date);
+        const apiDays = getApiDays(d as any);
+        const effectiveDays = apiDays != null ? apiDays : daysTextFromList;
         setLeaveDetail({
           policyName: d.time_off_policy?.name ?? 'Leave',
           startDate: d.start_date,
           endDate: d.end_date,
-          days: calcDays(d.start_date, d.end_date),
+          daysText: formatDaysText(effectiveDays, fallback),
           status: d.status,
           comments: d.comments ?? null,
           createdAt: d.created_at ?? null,
@@ -89,7 +147,7 @@ const LeaveDetailScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [leaveId]);
+  }, [leaveId, daysTextFromList]);
 
   useEffect(() => {
     fetchDetail();
@@ -283,7 +341,7 @@ const LeaveDetailScreen: React.FC = () => {
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Number of Days:</Text>
-            <Text style={styles.infoValue}>{leaveDetail.days} days</Text>
+            <Text style={styles.infoValue}>{leaveDetail.daysText} days</Text>
           </View>
         </View>
 

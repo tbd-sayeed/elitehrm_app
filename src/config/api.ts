@@ -94,5 +94,11 @@ export const API_ENDPOINTS = {
   BANK_GP: {
     DETAILS: '/bank-gp-details',
   },
+  PAYSLIPS: {
+    LIST: '/payslips',
+    UPLOAD: '/payslips',
+    DOWNLOAD: (id: number) => `/payslips/${id}/download`,
+    DELETE: (id: number) => `/payslips/${id}`,
+  },
 } as const;
 

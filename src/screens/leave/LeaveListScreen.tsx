@@ -31,7 +31,7 @@ interface LeaveRequest {
   policyName: string;
   startDate: string;
   endDate: string;
-  days: number;
+  daysText: string;
   status: 'pending' | 'approved' | 'rejected' | 'cancelled';
   comments?: string;
 }
@@ -44,15 +44,74 @@ const calcDays = (start: string, end: string) => {
   return diff + 1;
 };
 
-const mapApiToRequest = (item: LeaveListItem): LeaveRequest => ({
-  id: String(item.id),
-  policyName: item.time_off_policy?.name ?? 'Leave',
-  startDate: item.start_date,
-  endDate: item.end_date,
-  days: calcDays(item.start_date, item.end_date),
-  status: item.status as LeaveRequest['status'],
-  comments: item.comments,
-});
+const formatDaysText = (value: unknown, fallbackDays: number) => {
+  // If backend sends "5.0", keep it exactly; otherwise format sensibly.
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (s && !Number.isNaN(Number(s))) return s;
+    const match = s.match(/-?\d+(?:\.\d+)?/);
+    if (match?.[0]) return match[0];
+  }
+  if (typeof value === 'number') {
+    if (Number.isFinite(value)) return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  }
+  return String(fallbackDays);
+};
+
+const isNumericLike = (v: unknown) => {
+  if (typeof v === 'number') return Number.isFinite(v);
+  if (typeof v === 'string') {
+    const s = v.trim();
+    if (!s) return false;
+    return !Number.isNaN(Number(s)) || Boolean(s.match(/-?\d+(?:\.\d+)?/));
+  }
+  return false;
+};
+
+const getApiDays = (item: any) => {
+  // Try common backend keys first.
+  const direct =
+    item?.total_days ??
+    item?.number_of_days ??
+    item?.days ??
+    item?.duration ??
+    item?.totalDays ??
+    item?.total_days_requested ??
+    item?.days_requested ??
+    item?.requested_days ??
+    item?.leave_days ??
+    item?.leaveDays ??
+    null;
+
+  if (direct != null) return direct;
+
+  try {
+    const entries = Object.entries(item || {});
+    for (const [k, v] of entries) {
+      const key = String(k).toLowerCase();
+      if (key.includes('day') && !key.includes('start') && !key.includes('end') && isNumericLike(v)) {
+        return v;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
+const mapApiToRequest = (item: LeaveListItem): LeaveRequest => {
+  const fallback = calcDays(item.start_date, item.end_date);
+  const apiDays = getApiDays(item as any);
+  return {
+    id: String(item.id),
+    policyName: item.time_off_policy?.name ?? 'Leave',
+    startDate: item.start_date,
+    endDate: item.end_date,
+    daysText: formatDaysText(apiDays, fallback),
+    status: item.status as LeaveRequest['status'],
+    comments: item.comments,
+  };
+};
 
 const LeaveListScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -164,8 +223,8 @@ const LeaveListScreen: React.FC = () => {
     navigation.navigate('CreateLeave');
   };
 
-  const handleViewDetail = (leaveId: string) => {
-    navigation.navigate('LeaveDetail', { id: leaveId });
+  const handleViewDetail = (leaveId: string, daysText?: string) => {
+    navigation.navigate('LeaveDetail', { id: leaveId, daysText });
   };
 
   return (
@@ -265,7 +324,7 @@ const LeaveListScreen: React.FC = () => {
               <TouchableOpacity
                 key={request.id}
                 style={styles.card}
-                onPress={() => handleViewDetail(request.id)}
+                onPress={() => handleViewDetail(request.id, request.daysText)}
                 activeOpacity={0.7}>
                 <View style={styles.cardHeader}>
                   <View
@@ -287,7 +346,7 @@ const LeaveListScreen: React.FC = () => {
                 <Text style={styles.dateRange}>
                   {formatDateRange(request.startDate, request.endDate)}
                 </Text>
-                <Text style={styles.days}>{request.days} days</Text>
+                <Text style={styles.days}>{request.daysText} days</Text>
                 {request.comments && (
                   <View style={styles.commentsContainer}>
                     <Text style={styles.commentsLabel}>Comments:</Text>

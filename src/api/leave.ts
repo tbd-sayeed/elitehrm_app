@@ -10,23 +10,43 @@ export interface LeaveBalanceItem {
   time_off_policy: {
     id: number;
     name: string;
+    is_unlimited?: boolean;
   };
   total_days: number;
   used_days: number;
   remaining_days: number;
+  progress?: {
+    used?: number;
+    total?: number | null;
+    fraction_label?: string | null;
+    is_unlimited?: boolean;
+    hint?: string | null;
+  };
 }
 
 export interface LeaveBalancesResponse {
   success: boolean;
+  leave_year?: {
+    period_key?: string;
+    label?: string;
+    starts_on?: string;
+    ends_on?: string;
+    rule?: string;
+    balances_screen_title?: string;
+    balances_screen_subtitle?: string;
+    home_card_period_line?: string;
+    home_card_period_detail?: string;
+  };
   data?: LeaveBalanceItem[];
 }
 
 /**
  * Get leave balances by policy
  */
-export const getLeaveBalances = async (): Promise<LeaveBalancesResponse> => {
+export const getLeaveBalances = async (params?: { year?: number | string }): Promise<LeaveBalancesResponse> => {
   const response = await apiClient.get<LeaveBalancesResponse>(
-    API_ENDPOINTS.LEAVE.BALANCES
+    API_ENDPOINTS.LEAVE.BALANCES,
+    params ? { params } : undefined
   );
   return response.data;
 };
@@ -37,6 +57,8 @@ export interface LeaveListItem {
   start_date: string;
   end_date: string;
   status: string;
+  total_days?: number | string | null;
+  number_of_days?: number | string | null;
   time_off_policy?: {
     id: number;
     name: string;
@@ -103,6 +125,8 @@ export interface LeaveDetailItem {
   start_date: string;
   end_date: string;
   status: string;
+  total_days?: number | string | null;
+  number_of_days?: number | string | null;
   time_off_policy?: {
     id: number;
     name: string;

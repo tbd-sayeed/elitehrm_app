@@ -29,18 +29,41 @@ type LeaveBalancesNavigationProp = StackNavigationProp<
 interface LeaveBalance {
   id: string;
   policyName: string;
-  totalDays: number;
+  totalDays: number | null;
   usedDays: number;
-  remainingDays: number;
+  remainingDays: number | null;
+  isUnlimited: boolean;
+  fractionLabel: string | null;
+  progressHint: string | null;
 }
 
-const mapApiToBalance = (item: LeaveBalanceItem): LeaveBalance => ({
-  id: String(item.time_off_policy.id),
-  policyName: item.time_off_policy.name,
-  totalDays: item.total_days,
-  usedDays: item.used_days,
-  remainingDays: item.remaining_days,
-});
+const mapApiToBalance = (item: LeaveBalanceItem): LeaveBalance => {
+  const isUnlimited =
+    Boolean(item.time_off_policy?.is_unlimited) || Boolean(item.progress?.is_unlimited);
+
+  const used =
+    item.progress?.used != null ? Number(item.progress.used) : Number(item.used_days ?? 0);
+  const total =
+    item.progress?.total != null
+      ? Number(item.progress.total)
+      : isUnlimited
+      ? null
+      : Number(item.total_days ?? 0);
+
+  // Remaining is not meaningful for unlimited policies; show null.
+  const remaining = isUnlimited ? null : Number(item.remaining_days ?? 0);
+
+  return {
+    id: String(item.time_off_policy.id),
+    policyName: item.time_off_policy.name,
+    totalDays: total,
+    usedDays: used,
+    remainingDays: remaining,
+    isUnlimited,
+    fractionLabel: item.progress?.fraction_label ?? null,
+    progressHint: item.progress?.hint ?? null,
+  };
+};
 
 const LeaveBalancesScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -50,11 +73,26 @@ const LeaveBalancesScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
+  const [leaveYearTitle, setLeaveYearTitle] = useState<string | null>(null);
+  const [leaveYearSubtitle, setLeaveYearSubtitle] = useState<string | null>(null);
 
   const fetchBalances = useCallback(async () => {
     try {
       setError(null);
       const response = await getLeaveBalances();
+      const title =
+        response.leave_year?.balances_screen_title ||
+        response.leave_year?.label ||
+        null;
+      const subtitle =
+        response.leave_year?.balances_screen_subtitle ||
+        (response.leave_year?.label && response.leave_year?.balances_screen_title !== response.leave_year?.label
+          ? response.leave_year?.label
+          : null) ||
+        null;
+      setLeaveYearTitle(title);
+      setLeaveYearSubtitle(subtitle);
+
       if (response.success && response.data?.length) {
         setLeaveBalances(response.data.map(mapApiToBalance));
       } else {
@@ -68,6 +106,9 @@ const LeaveBalancesScreen: React.FC = () => {
               totalDays: p.total_allowed,
               usedDays: p.days_taken,
               remainingDays: p.days_remaining,
+              isUnlimited: false,
+              fractionLabel: `${p.days_taken}/${p.total_allowed}`,
+              progressHint: null,
             }))
           );
         } else {
@@ -86,6 +127,9 @@ const LeaveBalancesScreen: React.FC = () => {
             totalDays: p.total_allowed,
             usedDays: p.days_taken,
             remainingDays: p.days_remaining,
+            isUnlimited: false,
+            fractionLabel: `${p.days_taken}/${p.total_allowed}`,
+            progressHint: null,
           }))
         );
       } else {
@@ -106,8 +150,8 @@ const LeaveBalancesScreen: React.FC = () => {
     fetchBalances();
   }, [fetchBalances]);
 
-  const getProgressPercentage = (used: number, total: number) => {
-    if (total === 0) return 0;
+  const getProgressPercentage = (used: number, total: number | null) => {
+    if (!total || total === 0) return 0;
     return (used / total) * 100;
   };
 
@@ -119,6 +163,17 @@ const LeaveBalancesScreen: React.FC = () => {
   };
 
   const renderProgressBar = (balance: LeaveBalance) => {
+    if (balance.isUnlimited) {
+      const hint = balance.progressHint || 'Unlimited';
+      return (
+        <View style={styles.unlimitedRow}>
+          <Text style={styles.unlimitedText}>
+            Used: <Text style={styles.unlimitedStrong}>{balance.usedDays} days</Text> · {hint}
+          </Text>
+        </View>
+      );
+    }
+
     const percentage = getProgressPercentage(
       balance.usedDays,
       balance.totalDays,
@@ -139,7 +194,7 @@ const LeaveBalancesScreen: React.FC = () => {
           />
         </View>
         <Text style={styles.progressText}>
-          {balance.usedDays}/{balance.totalDays}
+          {balance.fractionLabel ?? `${balance.usedDays}/${balance.totalDays ?? 0}`}
         </Text>
       </View>
     );
@@ -173,9 +228,10 @@ const LeaveBalancesScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}>
         {/* Year Display */}
         <View style={styles.yearContainer}>
-          <Text style={styles.yearText}>
-            Leave Balances ({new Date().getFullYear()})
-          </Text>
+          <Text style={styles.yearText}>{leaveYearTitle || `Leave Balances (${new Date().getFullYear()})`}</Text>
+          {leaveYearSubtitle ? (
+            <Text style={styles.yearSubText}>{leaveYearSubtitle}</Text>
+          ) : null}
         </View>
 
         {loading ? (
@@ -213,7 +269,9 @@ const LeaveBalancesScreen: React.FC = () => {
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Total</Text>
-                  <Text style={styles.statValue}>{balance.totalDays} days</Text>
+                  <Text style={styles.statValue}>
+                    {balance.isUnlimited ? 'Unlimited' : `${balance.totalDays ?? 0} days`}
+                  </Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Used</Text>
@@ -224,7 +282,9 @@ const LeaveBalancesScreen: React.FC = () => {
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Remaining</Text>
                   <Text style={[styles.statValue, { color: color }]}>
-                    {balance.remainingDays} days
+                    {balance.isUnlimited
+                      ? '—'
+                      : `${balance.remainingDays ?? 0} days`}
                   </Text>
                 </View>
               </View>
@@ -289,6 +349,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#212121',
     textAlign: 'center',
+  },
+  yearSubText: {
+    marginTop: 6,
+    fontSize: 13,
+    color: '#757575',
+    textAlign: 'center',
+    fontWeight: '600',
   },
   loadingContainer: {
     paddingVertical: 48,
@@ -370,6 +437,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#424242',
     textAlign: 'right',
+  },
+  unlimitedRow: {
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  unlimitedText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  unlimitedStrong: {
+    color: '#0f172a',
+    fontWeight: '800',
   },
   statsContainer: {
     flexDirection: 'row',

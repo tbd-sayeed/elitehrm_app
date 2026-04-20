@@ -87,6 +87,10 @@ const ProfileScreen: React.FC = () => {
     navigation.navigate('BankGpDetails');
   };
 
+  const handleViewPayslips = () => {
+    navigation.navigate('Payslips');
+  };
+
   const openUrl = async (url: string) => {
     try {
       const ok = await Linking.canOpenURL(url);
@@ -469,6 +473,17 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.documentsButtonText}>My Documents</Text>
           <Text style={styles.documentsButtonSubtext}>
             View documents, validity and expiry
+          </Text>
+        </TouchableOpacity>
+
+        {/* Payslips */}
+        <TouchableOpacity
+          style={styles.documentsButton}
+          onPress={handleViewPayslips}
+          activeOpacity={0.8}>
+          <Text style={styles.documentsButtonText}>Payslips</Text>
+          <Text style={styles.documentsButtonSubtext}>
+            Upload and view your last 3 months payslips
           </Text>
         </TouchableOpacity>
 

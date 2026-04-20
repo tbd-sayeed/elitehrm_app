@@ -721,6 +721,11 @@ const DashboardScreen: React.FC = () => {
             <Text style={styles.cardTitle}>Leave Statistics</Text>
             <Text style={styles.viewAllText}>View All →</Text>
           </View>
+          {dashboardData?.leaveStatistics?.leave_year?.home_card_period_line ? (
+            <Text style={styles.leavePeriodText}>
+              {dashboardData.leaveStatistics.leave_year.home_card_period_line}
+            </Text>
+          ) : null}
           <View style={styles.statsContainer}>
             <View style={styles.statBox}>
               <Text style={styles.statNumber}>{leaveStats.total}</Text>
@@ -1088,6 +1093,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1a237e',
+  },
+  leavePeriodText: {
+    marginTop: -10,
+    marginBottom: 14,
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',

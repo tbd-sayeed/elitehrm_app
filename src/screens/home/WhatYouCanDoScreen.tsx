@@ -11,37 +11,78 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MainStackParamList } from '../../navigation/MainNavigator';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { getCenteredTextMaxWidth, getScreenHorizontalPadding } from '../../utils/layout';
 
 type WhatYouCanDoNavigationProp = StackNavigationProp<MainStackParamList, 'WhatYouCanDo'>;
+
+const FeatureCard: React.FC<{
+  icon: string;
+  iconBg: string;
+  iconColor: string;
+  title: string;
+  description: string;
+  cta: string;
+  onPress: () => void;
+}> = ({ icon, iconBg, iconColor, title, description, cta, onPress }) => {
+  return (
+    <TouchableOpacity style={styles.featureCard} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.featureTopRow}>
+        <View style={[styles.featureIconWrap, { backgroundColor: iconBg }]}>
+          <Ionicons name={icon as any} size={18} color={iconColor} />
+        </View>
+        <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+      </View>
+      <Text style={styles.featureTitle}>{title}</Text>
+      <Text style={styles.featureDesc}>{description}</Text>
+      <View style={styles.featureCtaRow}>
+        <Text style={styles.featureCtaText}>{cta}</Text>
+        <Ionicons name="arrow-forward" size={16} color="#1a237e" />
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const WhatYouCanDoScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<WhatYouCanDoNavigationProp>();
+  const { width } = useWindowDimensions();
+  const screenPadding = getScreenHorizontalPadding(width);
+  const centeredMaxWidth = getCenteredTextMaxWidth(width, screenPadding, 520);
+  const tabNav = navigation.getParent();
 
   const handleViewDocuments = () => {
-    const tabNav = navigation.getParent();
     (tabNav as any)?.navigate('Profile', { screen: 'Documents' });
   };
 
   const handleViewAttendance = () => {
-    const tabNav = navigation.getParent();
-    (tabNav as any)?.navigate('Attendance');
+    (tabNav as any)?.navigate('Attendance', { screen: 'AttendanceList' });
   };
 
   const handleViewLeaveList = () => {
-    const tabNav = navigation.getParent();
-    (tabNav as any)?.navigate('Leave');
+    (tabNav as any)?.navigate('Leave', { screen: 'LeaveList' });
+  };
+
+  const handleViewLeaveBalances = () => {
+    (tabNav as any)?.navigate('Leave', { screen: 'LeaveBalances' });
   };
 
   const handleViewProfile = () => {
-    const tabNav = navigation.getParent();
     (tabNav as any)?.navigate('Profile');
+  };
+
+  const handleViewPayslips = () => {
+    (tabNav as any)?.navigate('Profile', { screen: 'Payslips' });
+  };
+
+  const handleViewBankGp = () => {
+    (tabNav as any)?.navigate('Profile', { screen: 'BankGpDetails' });
   };
 
   return (
@@ -65,109 +106,97 @@ const WhatYouCanDoScreen: React.FC = () => {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: screenPadding, paddingBottom: 110 },
+        ]}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.introSubtitle}>
-          Manage your work, track attendance, and request leaves all in one place.
+        <View style={styles.hero}>
+          <View style={styles.heroIconRow}>
+            <View style={styles.heroIcon}>
+              <Ionicons name="sparkles-outline" size={18} color="#fff" />
+            </View>
+            <Text style={styles.heroTitle}>Everything you need in one place</Text>
+          </View>
+          <Text style={[styles.introSubtitle, { maxWidth: centeredMaxWidth }]}>
+            Attendance, leave, profile, documents and payslips — designed to help you manage work quickly and professionally.
+          </Text>
+        </View>
+
+        <Text style={styles.sectionHeading}>Quick access</Text>
+        <Text style={[styles.sectionSubHeading, { maxWidth: centeredMaxWidth }]}>
+          Tap a card to open that section.
         </Text>
 
-        {/* Track attendance */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionNumber}>
-              <Text style={styles.sectionNumberText}>1</Text>
-            </View>
-            <Text style={styles.sectionTitle}>Track your attendance</Text>
-          </View>
-          <Text style={styles.sectionText}>
-            View your attendance history, check in/out, and see your timesheet status.
-          </Text>
-          <TouchableOpacity
-            style={styles.sectionLink}
-            onPress={handleViewAttendance}
-            activeOpacity={0.7}>
-            <Text style={styles.sectionLinkText}>View attendance →</Text>
-          </TouchableOpacity>
-        </View>
+        <FeatureCard
+          icon="calendar-outline"
+          iconBg="#e0f2fe"
+          iconColor="#0369a1"
+          title="Attendance"
+          description="View your attendance history and timesheet details."
+          cta="Open attendance"
+          onPress={handleViewAttendance}
+        />
 
-        {/* Request and manage leave */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionNumber}>
-              <Text style={styles.sectionNumberText}>2</Text>
-            </View>
-            <Text style={styles.sectionTitle}>Request and manage leave</Text>
-          </View>
-          <Text style={styles.sectionText}>
-            Submit leave requests, view leave balances, and track your leave history.
-          </Text>
-          <TouchableOpacity
-            style={styles.sectionLink}
-            onPress={handleViewLeaveList}
-            activeOpacity={0.7}>
-            <Text style={styles.sectionLinkText}>View leave →</Text>
-          </TouchableOpacity>
-        </View>
+        <FeatureCard
+          icon="leaf-outline"
+          iconBg="#ecfdf5"
+          iconColor="#047857"
+          title="Leave requests"
+          description="Submit leave requests and track approvals and history."
+          cta="Open leave list"
+          onPress={handleViewLeaveList}
+        />
 
-        {/* View profile and timesheets */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionNumber}>
-              <Text style={styles.sectionNumberText}>3</Text>
-            </View>
-            <Text style={styles.sectionTitle}>View your profile and timesheets</Text>
-          </View>
-          <Text style={styles.sectionText}>
-            Access your profile, view timesheets, and update your personal information.
-          </Text>
-          <TouchableOpacity
-            style={styles.sectionLink}
-            onPress={handleViewProfile}
-            activeOpacity={0.7}>
-            <Text style={styles.sectionLinkText}>View profile →</Text>
-          </TouchableOpacity>
-        </View>
+        <FeatureCard
+          icon="pie-chart-outline"
+          iconBg="#eef2ff"
+          iconColor="#1a237e"
+          title="Leave balances"
+          description="See your current leave year period and remaining balances."
+          cta="Open balances"
+          onPress={handleViewLeaveBalances}
+        />
 
-        {/* Manage documents */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionNumber}>
-              <Text style={styles.sectionNumberText}>4</Text>
-            </View>
-            <Text style={styles.sectionTitle}>Manage your documents</Text>
-          </View>
-          <Text style={styles.sectionText}>
-            Upload and manage your documents including:
-          </Text>
-          <View style={styles.docList}>
-            <View style={styles.docItem}>
-              <Ionicons name="document-outline" size={20} color="#1a237e" />
-              <Text style={styles.docItemText}>Passport</Text>
-            </View>
-            <View style={styles.docItem}>
-              <Ionicons name="document-outline" size={20} color="#1a237e" />
-              <Text style={styles.docItemText}>Visa/eVisa</Text>
-            </View>
-            <View style={styles.docItem}>
-              <Ionicons name="document-outline" size={20} color="#1a237e" />
-              <Text style={styles.docItemText}>Right to Work</Text>
-            </View>
-            <View style={styles.docItem}>
-              <Ionicons name="document-outline" size={20} color="#1a237e" />
-              <Text style={styles.docItemText}>Employee Contract</Text>
-            </View>
-            <View style={styles.docItem}>
-              <Ionicons name="document-outline" size={20} color="#1a237e" />
-              <Text style={styles.docItemText}>Monthly payslips</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.sectionLink}
-            onPress={handleViewDocuments}
-            activeOpacity={0.7}>
-            <Text style={styles.sectionLinkText}>View all documents →</Text>
-          </TouchableOpacity>
-        </View>
+        <FeatureCard
+          icon="document-text-outline"
+          iconBg="#fff7ed"
+          iconColor="#c2410c"
+          title="Documents"
+          description="Upload and manage documents like passport, visa and right to work."
+          cta="Open documents"
+          onPress={handleViewDocuments}
+        />
+
+        <FeatureCard
+          icon="receipt-outline"
+          iconBg="#fdf2f8"
+          iconColor="#be185d"
+          title="Payslips"
+          description="Upload and view your last 3 months payslips (HMRC requirement)."
+          cta="Open payslips"
+          onPress={handleViewPayslips}
+        />
+
+        <FeatureCard
+          icon="person-outline"
+          iconBg="#f1f5f9"
+          iconColor="#0f172a"
+          title="Profile"
+          description="Review your personal details and update profile information."
+          cta="Open profile"
+          onPress={handleViewProfile}
+        />
+
+        <FeatureCard
+          icon="medical-outline"
+          iconBg="#f0fdf4"
+          iconColor="#166534"
+          title="Bank & GP details"
+          description="Add or update your bank details and GP information."
+          cta="Open bank & GP"
+          onPress={handleViewBankGp}
+        />
       </ScrollView>
     </View>
   );
@@ -207,15 +236,56 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 100,
+    paddingTop: 18,
+  },
+  hero: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  heroIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  heroIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: '#1a237e',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+    flex: 1,
   },
   introSubtitle: {
-    fontSize: 16,
-    color: '#555',
-    marginBottom: 24,
-    lineHeight: 24,
-    textAlign: 'center',
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 18,
+  },
+  sectionHeading: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  sectionSubHeading: {
+    fontSize: 12,
+    color: '#64748b',
+    lineHeight: 16,
+    marginBottom: 12,
   },
   section: {
     backgroundColor: '#ffffff',
@@ -227,6 +297,57 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  featureCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  featureTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  featureIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginBottom: 6,
+  },
+  featureDesc: {
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 18,
+  },
+  featureCtaRow: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  featureCtaText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1a237e',
   },
   sectionHeader: {
     flexDirection: 'row',

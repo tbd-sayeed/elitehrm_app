@@ -18,6 +18,8 @@ import DocumentsScreen from '../screens/profile/DocumentsScreen';
 import UploadDocumentScreen from '../screens/profile/UploadDocumentScreen';
 import DocumentDetailScreen from '../screens/profile/DocumentDetailScreen';
 import BankGpDetailsScreen from '../screens/profile/BankGpDetailsScreen';
+import PayslipsScreen from '../screens/profile/PayslipsScreen';
+import UploadPayslipScreen from '../screens/profile/UploadPayslipScreen';
 import AttendanceListScreen from '../screens/attendance/AttendanceListScreen';
 import TimesheetDetailScreen from '../screens/attendance/TimesheetDetailScreen';
 import LeaveListScreen from '../screens/leave/LeaveListScreen';
@@ -33,10 +35,12 @@ export type MainStackParamList = {
   UploadDocument: { categoryId?: number };
   DocumentDetail: { documentId: number };
   BankGpDetails: undefined;
+  Payslips: undefined;
+  UploadPayslip: undefined;
   AttendanceList: undefined;
   TimesheetDetail: undefined;
   LeaveList: undefined;
-  LeaveDetail: { id: string };
+  LeaveDetail: { id: string; daysText?: string };
   CreateLeave: undefined;
   LeaveBalances: undefined;
   WhatYouCanDo: undefined;
@@ -90,6 +94,8 @@ const ProfileStack: React.FC = () => (
     <Stack.Screen name="UploadDocument" component={UploadDocumentScreen} />
     <Stack.Screen name="DocumentDetail" component={DocumentDetailScreen} />
     <Stack.Screen name="BankGpDetails" component={BankGpDetailsScreen} />
+    <Stack.Screen name="Payslips" component={PayslipsScreen} />
+    <Stack.Screen name="UploadPayslip" component={UploadPayslipScreen} />
   </Stack.Navigator>
 );
 
