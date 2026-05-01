@@ -24,6 +24,7 @@ import { logout as logoutAPI } from '../../api/auth';
 import { clearAllStorage } from '../../utils/storage';
 import { useAuthStore } from '../../store/authStore';
 import { withCacheBust } from '../../utils/image';
+import DeviceInfo from 'react-native-device-info';
 
 type DashboardNavigationProp = StackNavigationProp<MainStackParamList, 'Dashboard'>;
 
@@ -45,6 +46,7 @@ const DashboardScreen: React.FC = () => {
     : 'Employee';
   const employeeDesignation = user?.positions?.[0]?.name || 'Employee';
   const companyName = user?.company?.name || 'Company';
+  const versionLabel = `Version ${DeviceInfo.getVersion()} (${DeviceInfo.getBuildNumber()})`;
 
   // Places of work (active only)
   const placesOfWork =
@@ -368,6 +370,10 @@ const DashboardScreen: React.FC = () => {
     (tabNav as any)?.navigate('Profile', { screen: 'Documents' });
   };
 
+  const handleViewPayslips = () => {
+    (tabNav as any)?.navigate('Profile', { screen: 'Payslips' });
+  };
+
   const handleViewWhatYouCanDo = () => {
     navigation.navigate('WhatYouCanDo');
   };
@@ -469,36 +475,44 @@ const DashboardScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
+          <View style={styles.headerTopRow}>
             <Text style={styles.employeeName}>{employeeName}</Text>
-            <Text style={styles.employeeDesignation}>{employeeDesignation} • {companyName}</Text>
+            <View style={styles.headerRightActions}>
+              <TouchableOpacity
+                style={styles.profilePhoto}
+                onPress={handleViewProfile}
+                activeOpacity={0.7}>
+                {user?.photo_url ? (
+                  <Image
+                    source={{ uri: withCacheBust(user.photo_url, photoCacheKey) }}
+                    style={styles.profilePhotoImage}
+                  />
+                ) : (
+                  <Text style={styles.profilePhotoText}>
+                    {employeeName
+                      .split(' ')
+                      .map((n) => n[0])
+                      .join('')
+                      .toUpperCase()}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.logoutButton}
+                onPress={handleLogout}
+                activeOpacity={0.7}>
+                <Text style={styles.logoutButtonText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              style={styles.profilePhoto}
-              onPress={handleViewProfile}
-              activeOpacity={0.7}>
-              {user?.photo_url ? (
-                <Image
-                  source={{ uri: withCacheBust(user.photo_url, photoCacheKey) }}
-                  style={styles.profilePhotoImage}
-                />
-              ) : (
-                <Text style={styles.profilePhotoText}>
-                  {employeeName
-                    .split(' ')
-                    .map((n) => n[0])
-                    .join('')
-                    .toUpperCase()}
-                </Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={handleLogout}
-              activeOpacity={0.7}>
-              <Text style={styles.logoutButtonText}>Logout</Text>
-            </TouchableOpacity>
+
+          <View style={styles.headerBottomRow}>
+            <Text style={styles.employeeDesignation} numberOfLines={1}>
+              {employeeDesignation} • {companyName}
+            </Text>
+            <Text style={styles.appVersionText} numberOfLines={1}>
+              {versionLabel}
+            </Text>
           </View>
         </View>
       </View>
@@ -779,6 +793,12 @@ const DashboardScreen: React.FC = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
+            onPress={handleViewPayslips}
+            activeOpacity={0.7}>
+            <Text style={styles.actionButtonText}>🧾 Payslips</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
             onPress={handleViewProfile}
             activeOpacity={0.7}>
             <Text style={styles.actionButtonText}>👤 View Profile</Text>
@@ -818,18 +838,24 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: 'column',
     marginTop: 6,
   },
-  headerLeft: {
-    flex: 1,
-    marginRight: 12,
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
-  headerRight: {
+  headerRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+  },
+  headerBottomRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 10,
   },
   employeeName: {
@@ -847,6 +873,14 @@ const styles = StyleSheet.create({
     color: '#E3F2FD',
     fontWeight: '500',
     letterSpacing: 0.2,
+    flex: 1,
+  },
+  appVersionText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.72)',
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    textAlign: 'right',
   },
   profilePhoto: {
     width: 42,
@@ -878,12 +912,12 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
-    height: 40,
+    height: 34,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

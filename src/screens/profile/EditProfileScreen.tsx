@@ -106,6 +106,8 @@ const EditProfileScreen: React.FC = () => {
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const pendingPhotoActionRef = React.useRef<null | (() => void)>(null);
 
+  const iosDateDisplay = Platform.OS === 'ios' ? (Platform.isPad ? 'inline' : 'spinner') : 'calendar';
+
   useEffect(() => {
     if (user) {
       setFormData({
@@ -561,7 +563,9 @@ const EditProfileScreen: React.FC = () => {
               <DateTimePicker
                 value={parseDate(formData.dateOfBirth)}
                 mode="date"
-                display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                display={iosDateDisplay as any}
+                themeVariant={Platform.OS === 'ios' ? 'light' : undefined}
+                textColor={Platform.OS === 'ios' ? '#0f172a' : undefined}
                 onChange={(_, selectedDate) => {
                   setShowDatePicker(Platform.OS === 'ios');
                   if (selectedDate) {
@@ -769,7 +773,9 @@ const EditProfileScreen: React.FC = () => {
               <DateTimePicker
                 value={parseDate((formData as any).spouseDateOfBirth)}
                 mode="date"
-                display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                display={iosDateDisplay as any}
+                themeVariant={Platform.OS === 'ios' ? 'light' : undefined}
+                textColor={Platform.OS === 'ios' ? '#0f172a' : undefined}
                 onChange={(_, selectedDate) => {
                   setShowSpouseDatePicker(Platform.OS === 'ios');
                   if (selectedDate) {

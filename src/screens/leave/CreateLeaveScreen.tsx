@@ -77,6 +77,8 @@ const CreateLeaveScreen: React.FC = () => {
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
+  const iosDateDisplay = Platform.OS === 'ios' ? (Platform.isPad ? 'inline' : 'spinner') : 'calendar';
+
   useEffect(() => {
     const loadPolicies = async () => {
       try {
@@ -327,8 +329,10 @@ const CreateLeaveScreen: React.FC = () => {
                 <DateTimePicker
                   value={formData.startDate ? parseDate(formData.startDate) : new Date()}
                   mode="date"
-                  display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                  display={iosDateDisplay as any}
                   minimumDate={new Date()}
+                  themeVariant={Platform.OS === 'ios' ? 'light' : undefined}
+                  textColor={Platform.OS === 'ios' ? '#0f172a' : undefined}
                   onChange={(_, selectedDate) => handleStartDateSelect(selectedDate)}
                 />
                 {Platform.OS === 'ios' && (
@@ -372,12 +376,14 @@ const CreateLeaveScreen: React.FC = () => {
                         : new Date()
                   }
                   mode="date"
-                  display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                  display={iosDateDisplay as any}
                   minimumDate={
                     formData.startDate
                       ? parseDate(formData.startDate)
                       : new Date()
                   }
+                  themeVariant={Platform.OS === 'ios' ? 'light' : undefined}
+                  textColor={Platform.OS === 'ios' ? '#0f172a' : undefined}
                   onChange={(_, selectedDate) => handleEndDateSelect(selectedDate)}
                 />
                 {Platform.OS === 'ios' && (

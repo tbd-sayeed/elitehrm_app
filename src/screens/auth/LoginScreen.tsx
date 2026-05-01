@@ -27,6 +27,7 @@ import { useAuthStore, type DashboardData } from '../../store/authStore';
 import { tokenStorage, userStorage, dashboardStorage, deviceStorage } from '../../utils/storage';
 import { showToast } from '../../utils/toast';
 import { getCenteredTextMaxWidth, getScreenHorizontalPadding } from '../../utils/layout';
+import DeviceInfo from 'react-native-device-info';
 
 type LoginNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -44,6 +45,8 @@ const LoginScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const versionLabel = `Version ${DeviceInfo.getVersion()} (${DeviceInfo.getBuildNumber()})`;
 
   const handleLogin = async () => {
     if (!canLogin) {
@@ -269,6 +272,8 @@ const LoginScreen: React.FC = () => {
               {isLoading ? 'Signing In...' : 'Sign In'}
             </Text>
           </TouchableOpacity>
+
+          <Text style={styles.versionText}>{versionLabel}</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -463,6 +468,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ffffff',
     letterSpacing: 0.5,
+  },
+  versionText: {
+    marginTop: 10,
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#9e9e9e',
+    fontWeight: '600',
   },
 });
 
