@@ -6,6 +6,10 @@
 import { tokenStorage, userStorage, dashboardStorage } from './storage';
 import { useAuthStore } from '../store/authStore';
 import type { DashboardData } from '../store/authStore';
+import { getProfile } from '../api/profile';
+import { showToast } from './toast';
+import { clearAllStorage } from './storage';
+import { getInactiveReason } from './accountStatus';
 
 /**
  * Restore authentication state from storage
@@ -27,6 +31,46 @@ export const restoreAuthState = async (): Promise<boolean> => {
         refreshToken: refreshToken,
         dashboardData: (dashboardData as DashboardData) || null,
       });
+
+      // Validate that the employee is still active on the server.
+      // If employment is inactive, backend typically returns 403 via `employment.active` middleware.
+      try {
+        const profile = await getProfile();
+        if (profile?.success && profile?.data) {
+          const inactiveReason = getInactiveReason(profile.data as any);
+          if (inactiveReason) {
+            useAuthStore.getState().setAuthNotice({
+              title: 'Account inactive',
+              message:
+                'Your account has been marked as inactive in the HR system, so you cannot use the app right now. Please contact your HR/admin team.',
+            });
+            showToast.error('Account inactive', 'Please contact HR.');
+            await clearAllStorage();
+            useAuthStore.getState().logout();
+            return false;
+          }
+          // Keep local profile in sync with server (optional but useful).
+          useAuthStore.getState().updateUser(profile.data as any);
+        }
+      } catch (e: any) {
+        const status = e?.response?.status;
+        const msg: string =
+          e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          e?.message ||
+          'Session invalid';
+
+        // 401/403 during restore means we should not keep the user logged in.
+        if (status === 401 || status === 403) {
+          if (status === 403) {
+            showToast.error('Access blocked', msg || 'Your account is inactive. Please contact HR.');
+          }
+          await clearAllStorage();
+          useAuthStore.getState().logout();
+          return false;
+        }
+      }
+
       return true;
     }
 

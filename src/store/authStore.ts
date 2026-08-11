@@ -192,6 +192,10 @@ interface AuthState {
   isLoading: boolean;
   dashboardData: DashboardData | null;
   photoCacheKey: number;
+  authNotice: null | {
+    title: string;
+    message: string;
+  };
 
   // Actions
   setAuth: (data: {
@@ -203,6 +207,8 @@ interface AuthState {
   updateUser: (user: Partial<Employee>) => void;
   setDashboardData: (data: DashboardData) => void;
   setLoading: (loading: boolean) => void;
+  setAuthNotice: (notice: { title: string; message: string }) => void;
+  clearAuthNotice: () => void;
   logout: () => void;
 }
 
@@ -215,6 +221,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: false,
   dashboardData: null,
   photoCacheKey: 0,
+  authNotice: null,
 
   // Set authentication data
   setAuth: (data) =>
@@ -228,6 +235,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       refreshToken: data.refreshToken,
       dashboardData: data.dashboardData || null,
       isLoading: false,
+      authNotice: null,
       // Bust avatar cache on app start/login so updated images show after relaunch.
       photoCacheKey: data.user?.photo_url ? Date.now() : 0,
       };
@@ -265,6 +273,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       isLoading: loading,
     }),
 
+  setAuthNotice: (notice) =>
+    set({
+      authNotice: notice,
+    }),
+
+  clearAuthNotice: () =>
+    set({
+      authNotice: null,
+    }),
+
   // Logout - Clear all auth state
   logout: () =>
     set({
@@ -275,6 +293,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       isLoading: false,
       dashboardData: null,
       photoCacheKey: 0,
+      // Keep `authNotice` so we can explain why user was logged out (e.g. inactive)
     }),
 }));
 

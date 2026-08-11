@@ -16,6 +16,8 @@ import {
   StatusBar,
   Alert,
   useWindowDimensions,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -25,16 +27,19 @@ import { reset as navigationReset } from '../../utils/navigationRef';
 import { login as loginAPI } from '../../api/auth';
 import { useAuthStore, type DashboardData } from '../../store/authStore';
 import { tokenStorage, userStorage, dashboardStorage, deviceStorage } from '../../utils/storage';
+import { clearAllStorage } from '../../utils/storage';
 import { showToast } from '../../utils/toast';
 import { getCenteredTextMaxWidth, getScreenHorizontalPadding } from '../../utils/layout';
 import DeviceInfo from 'react-native-device-info';
+import { getProfile } from '../../api/profile';
+import { getInactiveReason } from '../../utils/accountStatus';
 
 type LoginNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 
 const LoginScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<LoginNavigationProp>();
-  const { setAuth } = useAuthStore();
+  const { setAuth, authNotice, clearAuthNotice } = useAuthStore();
   const { width } = useWindowDimensions();
   const horizontalPad = getScreenHorizontalPadding(width);
   const subtitleMaxWidth = getCenteredTextMaxWidth(width, horizontalPad);
@@ -88,9 +93,43 @@ const LoginScreen: React.FC = () => {
           publicHolidays: public_holidays,
         } as DashboardData;
 
-        // Store tokens
+        // Store tokens first so we can validate account status via /profile before navigating.
         await tokenStorage.setAccessToken(access_token);
         await tokenStorage.setRefreshToken(refresh_token);
+
+        // Validate active/inactive right after login.
+        // If inactive, do NOT enter the dashboard even if login endpoint returned success.
+        try {
+          const profile = await getProfile();
+          if (profile?.success && profile?.data) {
+            const inactiveReason = getInactiveReason(profile.data as any);
+            if (inactiveReason) {
+              useAuthStore.getState().setAuthNotice({
+                title: 'Account inactive',
+                message:
+                  'Your account has been marked as inactive in the HR system, so you cannot use the app right now. Please contact your HR/admin team.',
+              });
+              await clearAllStorage();
+              useAuthStore.getState().logout();
+              navigationReset([{ name: 'Auth' }]);
+              return;
+            }
+          }
+        } catch (e: any) {
+          const status = e?.response?.status;
+          if (status === 401 || status === 403) {
+            useAuthStore.getState().setAuthNotice({
+              title: 'Account inactive',
+              message:
+                e?.response?.data?.message ||
+                'Your account has been marked as inactive in the HR system, so you cannot use the app right now. Please contact your HR/admin team.',
+            });
+            await clearAllStorage();
+            useAuthStore.getState().logout();
+            navigationReset([{ name: 'Auth' }]);
+            return;
+          }
+        }
         
         // Store user data
         await userStorage.setUserData(employee);
@@ -156,6 +195,18 @@ const LoginScreen: React.FC = () => {
       style={[styles.container, { paddingTop: insets.top }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+
+      <Modal visible={Boolean(authNotice)} transparent animationType="fade">
+        <Pressable style={styles.noticeOverlay} onPress={clearAuthNotice}>
+          <Pressable style={styles.noticeCard} onPress={() => {}}>
+            <Text style={styles.noticeTitle}>{authNotice?.title ?? 'Notice'}</Text>
+            <Text style={styles.noticeMessage}>{authNotice?.message ?? ''}</Text>
+            <TouchableOpacity style={styles.noticeBtn} onPress={clearAuthNotice} activeOpacity={0.85}>
+              <Text style={styles.noticeBtnText}>OK</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingHorizontal: horizontalPad }]}
@@ -475,6 +526,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9e9e9e',
     fontWeight: '600',
+  },
+  noticeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  noticeCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  noticeTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginBottom: 8,
+  },
+  noticeMessage: {
+    fontSize: 13,
+    color: '#334155',
+    lineHeight: 18,
+  },
+  noticeBtn: {
+    marginTop: 14,
+    backgroundColor: '#1a237e',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  noticeBtnText: {
+    color: '#ffffff',
+    fontWeight: '900',
+    fontSize: 14,
   },
 });
 

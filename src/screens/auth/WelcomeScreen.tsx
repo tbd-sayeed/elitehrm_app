@@ -12,12 +12,15 @@ import {
   StatusBar,
   Platform,
   useWindowDimensions,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import DeviceInfo from 'react-native-device-info';
+import { useAuthStore } from '../../store/authStore';
 
 type WelcomeScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Welcome'>;
 
@@ -29,6 +32,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<WelcomeScreenNavigationProp>();
   const { height, width } = useWindowDimensions();
+  const { authNotice, clearAuthNotice } = useAuthStore();
 
   // Start with a safe estimate so the first render is already compact enough;
   // then refine via onLayout once buttons are measured.
@@ -115,6 +119,18 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+
+      <Modal visible={Boolean(authNotice)} transparent animationType="fade">
+        <Pressable style={styles.noticeOverlay} onPress={clearAuthNotice}>
+          <Pressable style={styles.noticeCard} onPress={() => {}}>
+            <Text style={styles.noticeTitle}>{authNotice?.title ?? 'Notice'}</Text>
+            <Text style={styles.noticeMessage}>{authNotice?.message ?? ''}</Text>
+            <TouchableOpacity style={styles.noticeBtn} onPress={clearAuthNotice} activeOpacity={0.85}>
+              <Text style={styles.noticeBtnText}>OK</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
       
       <View style={styles.content}>
         {/* Header Section */}
@@ -472,6 +488,48 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1a237e',
     letterSpacing: 0.5,
+  },
+  noticeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  noticeCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  noticeTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginBottom: 8,
+  },
+  noticeMessage: {
+    fontSize: 13,
+    color: '#334155',
+    lineHeight: 18,
+  },
+  noticeBtn: {
+    marginTop: 14,
+    backgroundColor: '#1a237e',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  noticeBtnText: {
+    color: '#ffffff',
+    fontWeight: '900',
+    fontSize: 14,
   },
 });
 

@@ -24,6 +24,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { MainStackParamList } from '../../navigation/MainNavigator';
 import { getLeaveBalances, createLeaveRequest } from '../../api/leave';
 import { showToast } from '../../utils/toast';
+import { useAuthStore } from '../../store/authStore';
 
 type CreateLeaveNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -53,12 +54,51 @@ interface LeavePolicy {
   id: string;
   policyId: number;
   name: string;
-  remainingDays: number;
+  remainingDays: number | null;
+  isUnlimited?: boolean;
 }
+
+const dayIndexMon0 = (d: Date) => {
+  // JS: Sun=0..Sat=6 -> convert to Mon=0..Sun=6
+  const js = d.getDay();
+  return js === 0 ? 6 : js - 1;
+};
+
+const calculateWorkingDays = (
+  startDate: string,
+  endDate: string,
+  patternDays?: Array<{ is_working_day: boolean }> | null
+) => {
+  if (!startDate || !endDate) return 0;
+  const start = parseDate(startDate);
+  const end = parseDate(endDate);
+  if (end < start) return 0;
+
+  // If we don't have a usable working pattern, fall back to inclusive calendar days.
+  if (!patternDays || patternDays.length < 7) {
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays;
+  }
+
+  // Count working days between start..end inclusive.
+  let count = 0;
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const endLocal = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  while (cursor <= endLocal) {
+    const idx = dayIndexMon0(cursor);
+    if (patternDays[idx]?.is_working_day) {
+      count += 1;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+};
 
 const CreateLeaveScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<CreateLeaveNavigationProp>();
+  const workingPatternDays = useAuthStore((s) => s.dashboardData?.workingPatterns?.current?.days);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingPolicies, setLoadingPolicies] = useState(true);
   const [policies, setPolicies] = useState<LeavePolicy[]>([]);
@@ -89,7 +129,10 @@ const CreateLeaveScreen: React.FC = () => {
               id: String(b.time_off_policy.id),
               policyId: b.time_off_policy.id,
               name: b.time_off_policy.name,
-              remainingDays: b.remaining_days,
+              remainingDays: typeof (b as any).remaining_days === 'number' ? (b as any).remaining_days : null,
+              isUnlimited: Boolean(
+                (b.time_off_policy as any)?.is_unlimited || (b as any)?.progress?.is_unlimited
+              ),
             }))
           );
         } else {
@@ -110,19 +153,7 @@ const CreateLeaveScreen: React.FC = () => {
   };
 
   const calculateDays = (startDate: string, endDate: string) => {
-    if (!startDate || !endDate) {
-      setCalculatedDays(0);
-      return;
-    }
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (end < start) {
-      setCalculatedDays(0);
-      return;
-    }
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    setCalculatedDays(diffDays);
+    setCalculatedDays(calculateWorkingDays(startDate, endDate, workingPatternDays));
   };
 
   const handleStartDateSelect = (selectedDate: Date | undefined) => {
@@ -175,10 +206,15 @@ const CreateLeaveScreen: React.FC = () => {
       return false;
     }
 
-    if (selectedPolicy && calculatedDays > selectedPolicy.remainingDays) {
+    if (
+      selectedPolicy &&
+      !selectedPolicy.isUnlimited &&
+      selectedPolicy.remainingDays != null &&
+      calculatedDays > selectedPolicy.remainingDays
+    ) {
       Alert.alert(
         'Insufficient Balance',
-        `You only have ${selectedPolicy.remainingDays} days remaining. You are requesting ${calculatedDays} days.`,
+        `You only have ${selectedPolicy.remainingDays} working days remaining. You are requesting ${calculatedDays} working days.`,
       );
       return false;
     }
@@ -226,6 +262,14 @@ const CreateLeaveScreen: React.FC = () => {
   const handleCancel = () => {
     navigation.goBack();
   };
+
+  const hasRequiredFields = Boolean(formData.policyId && formData.startDate && formData.endDate);
+  const hasSufficientBalance =
+    !selectedPolicy ||
+    selectedPolicy.isUnlimited ||
+    selectedPolicy.remainingDays == null ||
+    calculatedDays <= selectedPolicy.remainingDays;
+  const canSubmit = hasRequiredFields && calculatedDays > 0 && hasSufficientBalance && !isLoading;
 
   return (
     <KeyboardAvoidingView
@@ -288,7 +332,11 @@ const CreateLeaveScreen: React.FC = () => {
                   {policy.name}
                 </Text>
                 <Text style={styles.policyRemaining}>
-                  {policy.remainingDays} days remaining
+                  {policy.isUnlimited
+                    ? 'Unlimited'
+                    : policy.remainingDays != null
+                    ? `${policy.remainingDays} working days remaining`
+                    : '—'}
                 </Text>
               </View>
               {formData.policyId === policy.id && (
@@ -399,13 +447,18 @@ const CreateLeaveScreen: React.FC = () => {
 
           {calculatedDays > 0 && (
             <View style={styles.daysContainer}>
-              <Text style={styles.daysLabel}>Calculated Days:</Text>
+              <Text style={styles.daysLabel}>Working Days:</Text>
               <Text style={styles.daysValue}>{calculatedDays} days</Text>
+              <Text style={styles.daysHint}>
+                Weekends excluded based on employee working pattern.
+              </Text>
               {selectedPolicy &&
+                !selectedPolicy.isUnlimited &&
+                selectedPolicy.remainingDays != null &&
                 calculatedDays > selectedPolicy.remainingDays && (
                   <Text style={styles.warningText}>
                     ⚠️ Insufficient balance! You only have{' '}
-                    {selectedPolicy.remainingDays} days remaining.
+                    {selectedPolicy.remainingDays} working days remaining.
                   </Text>
                 )}
             </View>
@@ -432,10 +485,10 @@ const CreateLeaveScreen: React.FC = () => {
         <TouchableOpacity
           style={[
             styles.submitButton,
-            isLoading && styles.submitButtonDisabled,
+            (!canSubmit || isLoading) && styles.submitButtonDisabled,
           ]}
           onPress={handleSubmit}
-          disabled={isLoading}
+          disabled={!canSubmit || isLoading}
           activeOpacity={0.8}>
           <Text style={styles.submitButtonText}>
             {isLoading ? 'Submitting...' : 'Submit Request'}
@@ -654,6 +707,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1a237e',
+  },
+  daysHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 16,
+    fontWeight: '500',
   },
   warningText: {
     fontSize: 12,

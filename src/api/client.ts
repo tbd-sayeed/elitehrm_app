@@ -7,6 +7,8 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'ax
 import { API_BASE_URL, API_TIMEOUT } from '../config/api';
 import { tokenStorage, clearAllStorage } from '../utils/storage';
 import { navigationRef } from '../utils/navigationRef';
+import { useAuthStore } from '../store/authStore';
+import { showToast } from '../utils/toast';
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -89,6 +91,40 @@ apiClient.interceptors.response.use(
     // Handle 401 Unauthorized - Try to refresh token
     // Only for authenticated endpoints (skip for auth endpoints like verify-email, login, etc.)
     const isAuthEndpoint = originalRequest.url?.includes('/auth/');
+
+    // Handle 403 Forbidden - employment inactive / access revoked
+    if (error.response?.status === 403 && !isAuthEndpoint) {
+      const data: any = error.response?.data;
+      const message: string =
+        String(data?.message || data?.error || error.message || '').trim();
+      const lower = message.toLowerCase();
+      const looksLikeInactive =
+        lower.includes('inactive') ||
+        lower.includes('employment') ||
+        lower.includes('not active') ||
+        lower.includes('deactivated') ||
+        lower.includes('disabled');
+
+      if (looksLikeInactive) {
+        try {
+          useAuthStore.getState().setAuthNotice({
+            title: 'Account inactive',
+            message:
+              message ||
+              'Your account has been marked as inactive in the HR system, so you cannot use the app right now. Please contact your HR/admin team.',
+          });
+        } catch {
+          // ignore
+        }
+        showToast.error(
+          'Access blocked',
+          message || 'Your account is inactive. Please contact HR.'
+        );
+        await handleLogout();
+        return Promise.reject(error);
+      }
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
@@ -144,6 +180,11 @@ apiClient.interceptors.response.use(
 const handleLogout = async (): Promise<void> => {
   try {
     await clearAllStorage();
+    try {
+      useAuthStore.getState().logout();
+    } catch {
+      // ignore
+    }
     
     // Navigate to login screen
     if (navigationRef.isReady()) {
