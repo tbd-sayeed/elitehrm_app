@@ -12,20 +12,32 @@ import {
   TouchableOpacity,
   StatusBar,
   RefreshControl,
-  TextInput,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
 import { MainStackParamList } from '../../navigation/MainNavigator';
-import { getAttendance, type AttendanceEntryApi } from '../../api/attendance';
+import {
+  getAttendance,
+  getTimesheets,
+  getTimesheetDownloadPdfUrl,
+  type AttendanceEntryApi,
+  type TimesheetListItem,
+} from '../../api/attendance';
 import { showToast } from '../../utils/toast';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import ReactNativeBlobUtil from 'react-native-blob-util';
+import { tokenStorage } from '../../utils/storage';
 
 type AttendanceListNavigationProp = StackNavigationProp<
   MainStackParamList,
   'AttendanceList'
 >;
+type AttendanceListRouteProp = RouteProp<MainStackParamList, 'AttendanceList'>;
 
 interface AttendanceEntry {
   id: string;
@@ -36,16 +48,29 @@ interface AttendanceEntry {
   finishTime?: string;
   breakDuration?: string;
   totalHours?: string;
+  breakMinutes?: number;
+  totalMinutes?: number;
   notes?: string;
   leaveType?: string;
   holidayName?: string;
 }
 
-const toMonthParam = (val: string) => {
-  const s = val.trim();
-  // accept YYYY-MM only
-  if (!/^\d{4}-\d{2}$/.test(s)) return null;
-  return s;
+const monthToDate = (month: string): Date => {
+  // month: YYYY-MM
+  const [y, m] = month.split('-').map(Number);
+  if (!y || !m) return new Date();
+  return new Date(y, m - 1, 1);
+};
+
+const dateToMonth = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+};
+
+const monthLabel = (month: string): string => {
+  const d = monthToDate(month);
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 };
 
 const stripSeconds = (t?: string | null) => {
@@ -67,6 +92,40 @@ const decimalHoursToLabel = (val?: string | null) => {
   if (hours === 0) return `${sign}${mins}m`;
   if (mins === 0) return `${sign}${hours}h`;
   return `${sign}${hours}h ${mins}m`;
+};
+
+const durationToMinutes = (val?: string | null) => {
+  if (val === null || val === undefined || val === '') return undefined;
+  if (typeof val === 'number') {
+    if (Number.isNaN(val)) return undefined;
+    return Math.round(val * 60);
+  }
+  const raw = String(val).trim();
+  if (!raw) return undefined;
+
+  // Decimal hours ("7.50")
+  const asNum = Number(raw);
+  if (!Number.isNaN(asNum)) return Math.round(asNum * 60);
+
+  // "150h:30m" / "07h:00m" / "7h 30m" / "-1h:15m"
+  const hm = raw.match(/^(-?\d+)\s*h(?:\s*[:\s]\s*)?(\d{1,2})?\s*m?$/i);
+  if (hm?.[1]) {
+    const h = Number(hm[1]);
+    const m = hm[2] != null ? Number(hm[2]) : 0;
+    if (Number.isNaN(h) || Number.isNaN(m)) return undefined;
+    const sign = h < 0 ? -1 : 1;
+    return sign * (Math.abs(h) * 60 + Math.abs(m));
+  }
+
+  // "45m" / "-30m"
+  const mm = raw.match(/^(-?\d+)\s*m$/i);
+  if (mm?.[1]) {
+    const m = Number(mm[1]);
+    if (Number.isNaN(m)) return undefined;
+    return m;
+  }
+
+  return undefined;
 };
 
 const sanitizeNotes = (notes: any) => {
@@ -108,6 +167,8 @@ const apiToUiEntry = (e: AttendanceEntryApi): AttendanceEntry => {
     finishTime: stripSeconds(e.finish_time) ?? undefined,
     breakDuration: decimalHoursToLabel(e.break_duration),
     totalHours: decimalHoursToLabel(e.total_hours),
+    breakMinutes: durationToMinutes(e.break_duration),
+    totalMinutes: durationToMinutes(e.total_hours),
     leaveType: e.leave_type ?? undefined,
     holidayName: e.public_holiday_name ?? undefined,
     notes: sanitizeNotes(e.notes),
@@ -117,33 +178,48 @@ const apiToUiEntry = (e: AttendanceEntryApi): AttendanceEntry => {
 const AttendanceListScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<AttendanceListNavigationProp>();
+  const route = useRoute<AttendanceListRouteProp>();
   const [refreshing, setRefreshing] = useState(false);
   const currentMonth = useMemo(() => {
     const now = new Date();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     return `${now.getFullYear()}-${m}`;
   }, []);
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    return currentMonth;
-  });
+  const [appliedMonth, setAppliedMonth] = useState<string>(() => currentMonth);
+  const [draftMonth, setDraftMonth] = useState<string>(() => currentMonth);
   const [showFilters, setShowFilters] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [pickerDate, setPickerDate] = useState<Date>(() => monthToDate(currentMonth));
   const [isLoading, setIsLoading] = useState(false);
   const [entries, setEntries] = useState<AttendanceEntry[]>([]);
+  const [monthTimesheet, setMonthTimesheet] = useState<TimesheetListItem | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-  const monthParam = useMemo(() => toMonthParam(selectedMonth), [selectedMonth]);
+  const monthParam = useMemo(() => appliedMonth, [appliedMonth]);
+
+  useEffect(() => {
+    const m = route.params?.month;
+    if (m && /^\d{4}-\d{2}$/.test(m) && m !== appliedMonth) {
+      setAppliedMonth(m);
+      setDraftMonth(m);
+      setPickerDate(monthToDate(m));
+    }
+  }, [appliedMonth, route.params?.month]);
+
+  useEffect(() => {
+    if (!showFilters) return;
+    setDraftMonth(appliedMonth);
+    setPickerDate(monthToDate(appliedMonth));
+  }, [showFilters, appliedMonth]);
 
   const applyMonthFilter = () => {
-    if (!monthParam) {
-      showToast.error('Month filter', 'Please use format YYYY-MM');
-      return;
-    }
-    loadAttendance();
+    setAppliedMonth(draftMonth);
     setShowFilters(false);
   };
 
   const resetMonthFilter = () => {
-    setSelectedMonth(currentMonth);
-    loadAttendance();
+    setDraftMonth(currentMonth);
+    setAppliedMonth(currentMonth);
     setShowFilters(false);
   };
 
@@ -182,6 +258,25 @@ const AttendanceListScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthParam]);
 
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const year = monthParam.slice(0, 4);
+        if (!/^\d{4}$/.test(year)) return;
+        const res = await getTimesheets({ year: Number(year), per_page: 50, page: 1 });
+        const list = res.data?.items ?? [];
+        const found =
+          list.find((t) => t.attendance_month === monthParam) ||
+          list.find((t) => t.month_key === monthParam) ||
+          null;
+        setMonthTimesheet(found);
+      } catch {
+        setMonthTimesheet(null);
+      }
+    };
+    void run();
+  }, [monthParam]);
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -189,6 +284,94 @@ const AttendanceListScreen: React.FC = () => {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const summary = useMemo(() => {
+    const isDayOff = (entry: AttendanceEntry) => {
+      if (entry.type !== 'attendance') return false;
+      return (
+        !entry.startTime &&
+        !entry.finishTime &&
+        !entry.totalHours &&
+        isZeroDurationLabel(entry.breakDuration)
+      );
+    };
+
+    const sumMinutes = entries.reduce((acc, e) => acc + (e.totalMinutes ?? 0), 0);
+    const attendanceDays = entries.filter((e) => e.type === 'attendance' && !isDayOff(e)).length;
+    const dayOffDays = entries.filter((e) => isDayOff(e)).length;
+    const leaveDays = entries.filter((e) => e.type === 'leave').length;
+    const holidayDays = entries.filter((e) => e.type === 'holiday').length;
+
+    const hours = Math.floor(sumMinutes / 60);
+    const mins = sumMinutes % 60;
+    const hoursLabel =
+      sumMinutes === 0 ? '—' : `${hours}h:${String(mins).padStart(2, '0')}m`;
+
+    return {
+      hoursLabel,
+      attendanceDays,
+      dayOffDays,
+      leaveDays,
+      holidayDays,
+      totalDays: entries.length,
+    };
+  }, [entries]);
+
+  const canDownloadMonthPdf = Boolean(
+    monthTimesheet &&
+      String(monthTimesheet.status || '').toLowerCase() === 'approved' &&
+      (monthTimesheet.can_download_pdf !== false)
+  );
+
+  const handleDownloadMonthPdf = async () => {
+    if (!monthTimesheet?.id || downloadingPdf) return;
+    if (!canDownloadMonthPdf) return;
+    try {
+      setDownloadingPdf(true);
+      const token = await tokenStorage.getAccessToken();
+      if (!token) {
+        showToast.error('Download report', 'Session expired. Please login again.');
+        return;
+      }
+
+      const url =
+        monthTimesheet.download_pdf_url ||
+        getTimesheetDownloadPdfUrl(monthTimesheet.id);
+
+      const period = (monthTimesheet.period_code || monthParam).replace(/[^0-9A-Za-z_-]/g, '');
+      const dir = ReactNativeBlobUtil.fs.dirs.CacheDir;
+      const path = `${dir}/elitehr_timesheet_${period}_${Date.now()}.pdf`;
+
+      showToast.info('Downloading', 'Preparing your timesheet report…');
+      const res = await ReactNativeBlobUtil.config({ path, fileCache: true }).fetch(
+        'GET',
+        url,
+        { Authorization: `Bearer ${token}`, Accept: 'application/pdf' }
+      );
+
+      const info = res.info();
+      const status = info?.status ?? 0;
+      const headers = (info?.headers ?? {}) as Record<string, string>;
+      const contentType = headers['content-type'] || headers['Content-Type'] || '';
+      if (status >= 300) {
+        throw new Error(`Download failed (HTTP ${status}).`);
+      }
+      if (!String(contentType).toLowerCase().includes('pdf')) {
+        throw new Error('Server did not return a PDF.');
+      }
+
+      const filePath = res.path();
+      if (Platform.OS === 'ios') {
+        await ReactNativeBlobUtil.ios.openDocument(filePath);
+      } else {
+        ReactNativeBlobUtil.android.actionViewIntent(filePath, 'application/pdf');
+      }
+    } catch (e: any) {
+      Alert.alert('Download report', e?.message || 'Could not download this report');
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   const renderAttendanceCard = (entry: AttendanceEntry) => {
@@ -308,16 +491,30 @@ const AttendanceListScreen: React.FC = () => {
           </View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Attendance</Text>
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setShowFilters(!showFilters)}
-          activeOpacity={0.7}>
-          <Ionicons
-            name={showFilters ? 'close' : 'options-outline'}
-            size={20}
-            color="#ffffff"
-          />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => navigation.navigate('TeamWorkingToday')}
+            activeOpacity={0.8}>
+            <Ionicons name="people-outline" size={20} color="#ffffff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => navigation.navigate('TimesheetsList')}
+            activeOpacity={0.8}>
+            <Ionicons name="list-outline" size={20} color="#ffffff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => setShowFilters((v) => !v)}
+            activeOpacity={0.8}>
+            <Ionicons
+              name={showFilters ? 'close' : 'options-outline'}
+              size={20}
+              color="#ffffff"
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filters Section */}
@@ -337,33 +534,57 @@ const AttendanceListScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.monthInputRow}>
-              <Ionicons name="search-outline" size={18} color="#64748b" />
-              <TextInput
-                style={styles.monthInput}
-                placeholder="YYYY-MM"
-                placeholderTextColor="#94a3b8"
-                value={selectedMonth}
-                onChangeText={setSelectedMonth}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="numbers-and-punctuation"
-                returnKeyType="done"
-                maxLength={7}
-                onSubmitEditing={applyMonthFilter}
-              />
-              {!!selectedMonth && (
-                <TouchableOpacity
-                  style={styles.monthClearButton}
-                  onPress={() => setSelectedMonth('')}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Ionicons name="close-circle" size={18} color="#94a3b8" />
-                </TouchableOpacity>
-              )}
-            </View>
+            <TouchableOpacity
+              style={styles.monthPickerRow}
+              onPress={() => setShowMonthPicker(true)}
+              activeOpacity={0.8}>
+              <View style={styles.monthPickerLeft}>
+                <Ionicons name="calendar-outline" size={18} color="#64748b" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.monthPickerLabel}>Selected month</Text>
+                  <Text style={styles.monthPickerValue}>{monthLabel(draftMonth)}</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-down" size={18} color="#94a3b8" />
+            </TouchableOpacity>
 
-            {!monthParam && (
-              <Text style={styles.filterHint}>Use format YYYY-MM (example: 2025-11)</Text>
+            {showMonthPicker && (
+              <View style={styles.pickerWrap}>
+                {Platform.OS === 'ios' && (
+                  <View style={styles.pickerHeaderRow}>
+                    <Text style={styles.pickerHeaderTitle}>Choose month</Text>
+                    <TouchableOpacity
+                      onPress={() => setShowMonthPicker(false)}
+                      activeOpacity={0.8}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <Text style={styles.pickerDone}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <DateTimePicker
+                  value={pickerDate}
+                  mode="date"
+                  display={(Platform.OS === 'ios' ? (Platform.isPad ? 'inline' : 'spinner') : 'calendar') as any}
+                  onChange={(event: any, date?: Date) => {
+                    if (Platform.OS === 'android') {
+                      if (event?.type === 'dismissed') {
+                        setShowMonthPicker(false);
+                        return;
+                      }
+                      const next = date ?? pickerDate;
+                      setPickerDate(next);
+                      setDraftMonth(dateToMonth(next));
+                      setShowMonthPicker(false);
+                      return;
+                    }
+                    const next = date ?? pickerDate;
+                    setPickerDate(next);
+                    setDraftMonth(dateToMonth(next));
+                  }}
+                  themeVariant="light"
+                  textColor="#0f172a"
+                />
+              </View>
             )}
 
             <View style={styles.filterActionsRow}>
@@ -391,6 +612,63 @@ const AttendanceListScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}>
+        {/* Month summary header */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryTopRow}>
+            <View style={styles.summaryMonthRow}>
+              <Ionicons name="calendar-outline" size={18} color="#1a237e" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.summaryMonthTitle}>{monthLabel(appliedMonth)}</Text>
+                <Text style={styles.summaryMonthSub}>
+                  {summary.totalDays ? `${summary.totalDays} records` : 'No records'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.summaryTopActions}>
+              {canDownloadMonthPdf && (
+                <TouchableOpacity
+                  style={[styles.pdfBtn, downloadingPdf && styles.pdfBtnDisabled]}
+                  onPress={handleDownloadMonthPdf}
+                  activeOpacity={0.85}
+                  disabled={downloadingPdf}>
+                  <Ionicons name="download-outline" size={16} color="#1a237e" />
+                  <Text style={styles.pdfBtnText}>
+                    {downloadingPdf ? 'Downloading…' : 'PDF'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.changeMonthBtn}
+                onPress={() => setShowFilters(true)}
+                activeOpacity={0.85}>
+                <Ionicons name="options-outline" size={16} color="#1a237e" />
+                <Text style={styles.changeMonthText}>Change</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryTile}>
+              <Text style={styles.summaryTileLabel}>Total Hours</Text>
+              <Text style={styles.summaryTileValue}>{summary.hoursLabel}</Text>
+            </View>
+            <View style={styles.summaryTile}>
+              <Text style={styles.summaryTileLabel}>Attendance</Text>
+              <Text style={styles.summaryTileValue}>{summary.attendanceDays}</Text>
+            </View>
+            <View style={styles.summaryTile}>
+              <Text style={styles.summaryTileLabel}>Day off</Text>
+              <Text style={styles.summaryTileValue}>{summary.dayOffDays}</Text>
+            </View>
+            <View style={styles.summaryTile}>
+              <Text style={styles.summaryTileLabel}>Leave/Holiday</Text>
+              <Text style={styles.summaryTileValue}>
+                {summary.leaveDays + summary.holidayDays}
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {isLoading && entries.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Loading attendance…</Text>
@@ -444,7 +722,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
   },
-  filterButton: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerIconBtn: {
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: 10,
@@ -489,30 +772,59 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#eef2ff',
   },
-  monthInputRow: {
+  monthPickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     backgroundColor: '#ffffff',
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
-  monthInput: {
+  monthPickerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#0f172a',
-    paddingVertical: 0,
+    paddingRight: 12,
   },
-  monthClearButton: {
-    marginLeft: 8,
-  },
-  filterHint: {
-    marginTop: 10,
+  monthPickerLabel: {
     fontSize: 12,
     color: '#64748b',
+    fontWeight: '700',
+  },
+  monthPickerValue: {
+    marginTop: 2,
+    fontSize: 14,
+    color: '#0f172a',
+    fontWeight: '800',
+  },
+  pickerWrap: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 10,
+  },
+  pickerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingBottom: 6,
+  },
+  pickerHeaderTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  pickerDone: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#1a237e',
   },
   filterActionsRow: {
     flexDirection: 'row',
@@ -551,6 +863,108 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 100,
+  },
+  summaryCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  summaryTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  summaryMonthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    paddingRight: 8,
+  },
+  summaryMonthTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0f172a',
+  },
+  summaryMonthSub: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  changeMonthBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: '#eef2ff',
+  },
+  changeMonthText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#1a237e',
+  },
+  summaryTopActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pdfBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  pdfBtnDisabled: {
+    opacity: 0.7,
+  },
+  pdfBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#1a237e',
+  },
+  summaryGrid: {
+    marginTop: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  summaryTile: {
+    flexGrow: 1,
+    flexBasis: '47%',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  summaryTileLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748b',
+  },
+  summaryTileValue: {
+    marginTop: 4,
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0f172a',
   },
   card: {
     backgroundColor: '#ffffff',

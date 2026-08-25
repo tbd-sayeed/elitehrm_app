@@ -23,6 +23,8 @@ import PayslipsScreen from '../screens/profile/PayslipsScreen';
 import UploadPayslipScreen from '../screens/profile/UploadPayslipScreen';
 import AttendanceListScreen from '../screens/attendance/AttendanceListScreen';
 import TimesheetDetailScreen from '../screens/attendance/TimesheetDetailScreen';
+import TimesheetsListScreen from '../screens/attendance/TimesheetsListScreen';
+import TeamWorkingTodayScreen from '../screens/attendance/TeamWorkingTodayScreen';
 import LeaveListScreen from '../screens/leave/LeaveListScreen';
 import LeaveDetailScreen from '../screens/leave/LeaveDetailScreen';
 import CreateLeaveScreen from '../screens/leave/CreateLeaveScreen';
@@ -38,7 +40,9 @@ export type MainStackParamList = {
   BankGpDetails: undefined;
   Payslips: undefined;
   UploadPayslip: undefined;
-  AttendanceList: undefined;
+  AttendanceList: { month?: string } | undefined;
+  TimesheetsList: undefined;
+  TeamWorkingToday: undefined;
   TimesheetDetail: undefined;
   LeaveList: undefined;
   LeaveDetail: { id: string; daysText?: string };
@@ -76,6 +80,8 @@ const HomeStack: React.FC = () => (
 const AttendanceStack: React.FC = () => (
   <Stack.Navigator screenOptions={stackScreenOptions}>
     <Stack.Screen name="AttendanceList" component={AttendanceListScreen} />
+    <Stack.Screen name="TimesheetsList" component={TimesheetsListScreen} />
+    <Stack.Screen name="TeamWorkingToday" component={TeamWorkingTodayScreen} />
     <Stack.Screen name="TimesheetDetail" component={TimesheetDetailScreen} />
   </Stack.Navigator>
 );

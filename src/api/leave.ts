@@ -4,7 +4,7 @@
  */
 
 import apiClient from './client';
-import { API_ENDPOINTS, APP_WEB_BASE_URL } from '../config/api';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
 
 export interface LeaveBalanceItem {
   time_off_policy: {
@@ -59,6 +59,7 @@ export interface LeaveListItem {
   status: string;
   total_days?: number | string | null;
   number_of_days?: number | string | null;
+  download_pdf_url?: string | null;
   time_off_policy?: {
     id: number;
     name: string;
@@ -127,6 +128,7 @@ export interface LeaveDetailItem {
   status: string;
   total_days?: number | string | null;
   number_of_days?: number | string | null;
+  download_pdf_url?: string | null;
   time_off_policy?: {
     id: number;
     name: string;
@@ -160,9 +162,8 @@ export const getLeaveDetail = async (
  * (Requires Authorization header)
  */
 export const getLeaveRequestDownloadUrl = (id: number | string): string => {
-  // Backend provides PDF via the HR web route
-  // e.g. https://hrm.elitementors.org.uk/hr/leaves/{id}/download-pdf
-  return `${APP_WEB_BASE_URL}/hr/leaves/${Number(id)}/download-pdf`;
+  // Token-protected PDF endpoint (same as other employee routes)
+  return `${API_BASE_URL}${API_ENDPOINTS.LEAVE.DOWNLOAD_PDF(Number(id))}`;
 };
 
 /**

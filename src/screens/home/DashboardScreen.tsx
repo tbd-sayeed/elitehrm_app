@@ -396,6 +396,10 @@ const DashboardScreen: React.FC = () => {
     (tabNav as any)?.navigate('Profile', { screen: 'Payslips' });
   };
 
+  const handleViewTeamSchedule = () => {
+    (tabNav as any)?.navigate('Attendance', { screen: 'TeamWorkingToday' });
+  };
+
   const handleViewPublicHolidays = () => {
     navigation.navigate('PublicHolidays');
   };
@@ -797,6 +801,12 @@ const DashboardScreen: React.FC = () => {
             onPress={handleViewAttendance}
             activeOpacity={0.7}>
             <Text style={styles.actionButtonText}>📅 View Attendance</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleViewTeamSchedule}
+            activeOpacity={0.7}>
+            <Text style={styles.actionButtonText}>👥 Team schedule (Today)</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}

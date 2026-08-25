@@ -122,6 +122,7 @@ const LeaveDetailScreen: React.FC = () => {
     updatedAt: string | null;
     approvedBy: string | null;
     statusChangeNotes: string | null;
+    downloadPdfUrl: string | null;
   } | null>(null);
 
   const toNumberOrNull = (v: unknown): number | null => {
@@ -176,6 +177,7 @@ const LeaveDetailScreen: React.FC = () => {
           updatedAt: d.updated_at ?? null,
           approvedBy: d.approved_by?.name ?? null,
           statusChangeNotes: d.status_change_note ?? null,
+          downloadPdfUrl: (d as any).download_pdf_url ?? null,
         });
       } else {
         setError('Failed to load leave details');
@@ -318,7 +320,7 @@ const LeaveDetailScreen: React.FC = () => {
   if (!leaveDetail) return null;
 
   const statusConfig = getStatusConfig(leaveDetail.status);
-  const canDownload = leaveDetail.status === 'approved' && !!leaveId;
+  const canDownload = leaveDetail.status === 'approved' && !!(leaveDetail.downloadPdfUrl || leaveId);
 
   const handleDownload = async () => {
     if (!canDownload || downloading) return;
@@ -330,7 +332,7 @@ const LeaveDetailScreen: React.FC = () => {
         return;
       }
 
-      const url = getLeaveRequestDownloadUrl(leaveId);
+      const url = leaveDetail.downloadPdfUrl || getLeaveRequestDownloadUrl(leaveId);
       const dir = ReactNativeBlobUtil.fs.dirs.CacheDir;
       const safeId = String(leaveId).replace(/[^0-9A-Za-z_-]/g, '');
       const path = `${dir}/elitehr_leave_request_${safeId}_${Date.now()}.pdf`;
@@ -353,13 +355,13 @@ const LeaveDetailScreen: React.FC = () => {
       if (status >= 300) {
         throw new Error(
           status === 302 || status === 301
-            ? 'Download endpoint redirected (likely requires web login). Please ask admin to enable PDF download via employee API.'
+            ? 'Download endpoint redirected. Please try again, or contact support.'
             : `Download failed (HTTP ${status}).`
         );
       }
       if (!String(contentType).toLowerCase().includes('pdf')) {
         throw new Error(
-          'Server did not return a PDF (likely returned an HTML login page). Please ask admin to provide a token-protected API PDF endpoint.'
+          'Server did not return a PDF. Please try again, or contact support.'
         );
       }
 

@@ -4,7 +4,7 @@
  */
 
 import apiClient from './client';
-import { API_ENDPOINTS } from '../config/api';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
 
 export interface AttendanceTimesheetSummary {
   id: number;
@@ -15,6 +15,7 @@ export interface AttendanceTimesheetSummary {
   total_hours?: string;
   contract_hours?: string;
   overtime_hours?: string;
+  download_pdf_url?: string | null;
 }
 
 export interface AttendanceEntryApi {
@@ -78,5 +79,53 @@ export const getCurrentTimesheet = async (): Promise<CurrentTimesheetResponse> =
     API_ENDPOINTS.ATTENDANCE.CURRENT_TIMESHEET
   );
   return response.data;
+};
+
+export interface TimesheetListItem {
+  id: number;
+  period_code: string; // e.g. M08-2026
+  month_key: string; // YYYY-MM
+  start_date: string; // Y-m-d
+  end_date: string; // Y-m-d
+  total_hours: string; // e.g. 107h:00m (HR web format)
+  contract_hours: string; // e.g. 107h:00m
+  status: 'draft' | 'submitted' | 'approved' | 'rejected' | string;
+  attendance_month: string; // YYYY-MM
+  attendance_url?: string;
+  can_view_attendance?: boolean;
+  download_pdf_url?: string | null;
+  can_download_pdf?: boolean;
+}
+
+export interface TimesheetsListResponse {
+  success: boolean;
+  data?: {
+    current_page?: number;
+    per_page?: number;
+    total?: number;
+    items?: TimesheetListItem[];
+  };
+  message?: string;
+}
+
+export interface GetTimesheetsParams {
+  year?: number | string;
+  status?: string; // draft|submitted|approved|rejected
+  page?: number;
+  per_page?: number;
+}
+
+export const getTimesheets = async (
+  params?: GetTimesheetsParams
+): Promise<TimesheetsListResponse> => {
+  const response = await apiClient.get<TimesheetsListResponse>(
+    API_ENDPOINTS.ATTENDANCE.TIMESHEETS,
+    { params }
+  );
+  return response.data;
+};
+
+export const getTimesheetDownloadPdfUrl = (id: number | string): string => {
+  return `${API_BASE_URL}${API_ENDPOINTS.ATTENDANCE.TIMESHEET_DOWNLOAD_PDF(Number(id))}`;
 };
 
