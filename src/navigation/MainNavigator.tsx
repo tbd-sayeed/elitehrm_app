@@ -12,6 +12,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import DashboardScreen from '../screens/home/DashboardScreen';
 import WhatYouCanDoScreen from '../screens/home/WhatYouCanDoScreen';
+import PublicHolidaysScreen from '../screens/home/PublicHolidaysScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import DocumentsScreen from '../screens/profile/DocumentsScreen';
@@ -44,6 +45,7 @@ export type MainStackParamList = {
   CreateLeave: undefined;
   LeaveBalances: undefined;
   WhatYouCanDo: undefined;
+  PublicHolidays: undefined;
 };
 
 export type MainTabParamList = {
@@ -67,6 +69,7 @@ const HomeStack: React.FC = () => (
   <Stack.Navigator screenOptions={stackScreenOptions}>
     <Stack.Screen name="Dashboard" component={DashboardScreen} />
     <Stack.Screen name="WhatYouCanDo" component={WhatYouCanDoScreen} />
+    <Stack.Screen name="PublicHolidays" component={PublicHolidaysScreen} />
   </Stack.Navigator>
 );
 

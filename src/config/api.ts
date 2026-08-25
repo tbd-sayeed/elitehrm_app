@@ -35,6 +35,20 @@ const getBaseURL = (): string => {
 export const API_BASE_URL = getBaseURL();
 
 /**
+ * Web base (for non-API routes like HR PDF downloads)
+ * Example:
+ * - API base: https://hrm.elitementors.org.uk/api/v1/employee
+ * - Web base: https://hrm.elitementors.org.uk
+ */
+export const APP_WEB_BASE_URL = (() => {
+  const s = API_BASE_URL;
+  const apiIdx = s.indexOf('/api/');
+  if (apiIdx >= 0) return s.slice(0, apiIdx);
+  // Fallback: drop a trailing /employee or /api segment if present
+  return s.replace(/\/(employee|api)\/?$/, '');
+})();
+
+/**
  * Public API base (non-employee scoped)
  * Example:
  * - Employee base: https://.../api/v1/employee
@@ -79,6 +93,7 @@ export const API_ENDPOINTS = {
   LEAVE: {
     LIST: '/leaves',
     DETAIL: (id: number) => `/leaves/${id}`,
+    DOWNLOAD: (id: number) => `/leaves/${id}/download`,
     CREATE: '/leaves',
     BALANCES: '/leaves/balances',
   },

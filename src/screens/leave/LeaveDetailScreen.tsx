@@ -13,13 +13,18 @@ import {
   StatusBar,
   RefreshControl,
   ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { MainStackParamList } from '../../navigation/MainNavigator';
-import { getLeaveDetail } from '../../api/leave';
+import { getLeaveDetail, getLeaveRequestDownloadUrl } from '../../api/leave';
+import ReactNativeBlobUtil from 'react-native-blob-util';
+import { tokenStorage } from '../../utils/storage';
+import { showToast } from '../../utils/toast';
 
 type LeaveDetailNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -27,9 +32,16 @@ type LeaveDetailNavigationProp = StackNavigationProp<
 >;
 type LeaveDetailRouteProp = RouteProp<MainStackParamList, 'LeaveDetail'>;
 
+const parseYmdLocal = (dateStr: string): Date | null => {
+  if (!dateStr) return null;
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
 const calcDays = (start: string, end: string) => {
-  const s = new Date(start);
-  const e = new Date(end);
+  const s = parseYmdLocal(start) ?? new Date(start);
+  const e = parseYmdLocal(end) ?? new Date(end);
   if (e < s) return 0;
   const diff = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
   return diff + 1;
@@ -98,6 +110,7 @@ const LeaveDetailScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const [leaveDetail, setLeaveDetail] = useState<{
     policyName: string;
     startDate: string;
@@ -110,6 +123,19 @@ const LeaveDetailScreen: React.FC = () => {
     approvedBy: string | null;
     statusChangeNotes: string | null;
   } | null>(null);
+
+  const toNumberOrNull = (v: unknown): number | null => {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s) return null;
+      const m = s.match(/-?\d+(?:\.\d+)?/);
+      if (!m?.[0]) return null;
+      const n = Number(m[0]);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  };
 
   const fetchDetail = useCallback(async () => {
     if (!leaveId) {
@@ -124,7 +150,21 @@ const LeaveDetailScreen: React.FC = () => {
         const d = response.data;
         const fallback = calcDays(d.start_date, d.end_date);
         const apiDays = getApiDays(d as any);
-        const effectiveDays = apiDays != null ? apiDays : daysTextFromList;
+        // Prefer backend "working days" when available. Some APIs may also include
+        // calendar-day counts that match the date range; in that case, keep the list
+        // value if it differs from calendar days.
+        const apiNum = toNumberOrNull(apiDays);
+        const listNum = toNumberOrNull(daysTextFromList);
+        const isApiCalendarDays = apiNum != null && Math.round(apiNum) === fallback;
+        const isListDifferentFromCalendar =
+          listNum != null && Math.round(listNum) !== fallback;
+
+        const effectiveDays =
+          apiDays != null
+            ? (isApiCalendarDays && daysTextFromList && isListDifferentFromCalendar
+                ? daysTextFromList
+                : apiDays)
+            : daysTextFromList;
         setLeaveDetail({
           policyName: d.time_off_policy?.name ?? 'Leave',
           startDate: d.start_date,
@@ -159,7 +199,7 @@ const LeaveDetailScreen: React.FC = () => {
   }, [fetchDetail]);
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseYmdLocal(dateString) ?? new Date(dateString);
     return date.toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
@@ -278,6 +318,63 @@ const LeaveDetailScreen: React.FC = () => {
   if (!leaveDetail) return null;
 
   const statusConfig = getStatusConfig(leaveDetail.status);
+  const canDownload = leaveDetail.status === 'approved' && !!leaveId;
+
+  const handleDownload = async () => {
+    if (!canDownload || downloading) return;
+    try {
+      setDownloading(true);
+      const token = await tokenStorage.getAccessToken();
+      if (!token) {
+        showToast.error('Download leave form', 'Session expired. Please login again.');
+        return;
+      }
+
+      const url = getLeaveRequestDownloadUrl(leaveId);
+      const dir = ReactNativeBlobUtil.fs.dirs.CacheDir;
+      const safeId = String(leaveId).replace(/[^0-9A-Za-z_-]/g, '');
+      const path = `${dir}/elitehr_leave_request_${safeId}_${Date.now()}.pdf`;
+
+      showToast.info('Downloading', 'Preparing your leave form…');
+      const res = await ReactNativeBlobUtil.config({ path, fileCache: true }).fetch(
+        'GET',
+        url,
+        { Authorization: `Bearer ${token}`, Accept: 'application/pdf' }
+      );
+
+      const info = res.info();
+      const status = info?.status ?? 0;
+      const headers = (info?.headers ?? {}) as Record<string, string>;
+      const contentType =
+        headers['content-type'] ||
+        headers['Content-Type'] ||
+        '';
+
+      if (status >= 300) {
+        throw new Error(
+          status === 302 || status === 301
+            ? 'Download endpoint redirected (likely requires web login). Please ask admin to enable PDF download via employee API.'
+            : `Download failed (HTTP ${status}).`
+        );
+      }
+      if (!String(contentType).toLowerCase().includes('pdf')) {
+        throw new Error(
+          'Server did not return a PDF (likely returned an HTML login page). Please ask admin to provide a token-protected API PDF endpoint.'
+        );
+      }
+
+      const filePath = res.path();
+      if (Platform.OS === 'ios') {
+        await ReactNativeBlobUtil.ios.openDocument(filePath);
+      } else {
+        ReactNativeBlobUtil.android.actionViewIntent(filePath, 'application/pdf');
+      }
+    } catch (e: any) {
+      Alert.alert('Download leave form', e?.message || 'Could not download this leave form');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -344,6 +441,19 @@ const LeaveDetailScreen: React.FC = () => {
             <Text style={styles.infoValue}>{leaveDetail.daysText} days</Text>
           </View>
         </View>
+
+        {/* Download Leave Form (Approved only) */}
+        {canDownload && (
+          <TouchableOpacity
+            style={[styles.downloadButton, downloading && styles.downloadButtonDisabled]}
+            onPress={handleDownload}
+            activeOpacity={0.85}
+            disabled={downloading}>
+            <Text style={styles.downloadButtonText}>
+              {downloading ? 'Downloading…' : '⬇️ Download leave form (PDF)'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Comments Card */}
         {leaveDetail.comments && (
@@ -476,6 +586,27 @@ const styles = StyleSheet.create({
   retryButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#ffffff',
+  },
+  downloadButton: {
+    backgroundColor: '#1a237e',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#1a237e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  downloadButtonDisabled: {
+    opacity: 0.75,
+  },
+  downloadButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
     color: '#ffffff',
   },
   statusContainer: {

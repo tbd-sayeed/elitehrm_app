@@ -328,21 +328,43 @@ const DashboardScreen: React.FC = () => {
       };
 
   // Get public holidays from dashboard data
+  const parseYmdLocal = (dateString: string): Date | null => {
+    if (!dateString) return null;
+    const [y, m, d] = String(dateString).split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d);
+  };
+
   const formatHolidayDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseYmdLocal(dateString);
+    if (!date) return dateString;
     const month = date.toLocaleDateString('en-US', { month: 'short' });
     const day = date.getDate();
     return `${month} ${day}`;
   };
 
-  const publicHolidays = dashboardData?.publicHolidays?.holidays
-    ? dashboardData.publicHolidays.holidays
-        .slice(0, 5) // Show only first 5 holidays
-        .map((holiday) => ({
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const allPublicHolidays = dashboardData?.publicHolidays?.holidays ?? [];
+  const publicHolidays = React.useMemo(() => {
+    const mapped = allPublicHolidays
+      .map((holiday) => {
+        const d = parseYmdLocal(holiday.date);
+        return {
           name: holiday.name,
-          date: formatHolidayDate(holiday.date),
-        }))
-    : [];
+          date: holiday.date,
+          time: d?.getTime() ?? 0,
+        };
+      })
+      .filter((h) => h.time > 0 && h.time >= startOfToday.getTime())
+      .sort((a, b) => a.time - b.time)
+      .slice(0, 5)
+      .map((h) => ({
+        name: h.name,
+        date: formatHolidayDate(h.date),
+      }));
+    return mapped;
+  }, [allPublicHolidays, startOfToday.getTime()]);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -372,6 +394,10 @@ const DashboardScreen: React.FC = () => {
 
   const handleViewPayslips = () => {
     (tabNav as any)?.navigate('Profile', { screen: 'Payslips' });
+  };
+
+  const handleViewPublicHolidays = () => {
+    navigation.navigate('PublicHolidays');
   };
 
   const handleViewWhatYouCanDo = () => {
@@ -711,7 +737,12 @@ const DashboardScreen: React.FC = () => {
 
         {/* Upcoming Public Holidays Card */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Upcoming Public Holidays</Text>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Upcoming Public Holidays</Text>
+            <TouchableOpacity onPress={handleViewPublicHolidays} activeOpacity={0.7}>
+              <Text style={styles.viewAllText}>View All →</Text>
+            </TouchableOpacity>
+          </View>
           {publicHolidays.length > 0 ? (
             publicHolidays.map((holiday, index) => (
               <View key={index} style={styles.holidayItem}>

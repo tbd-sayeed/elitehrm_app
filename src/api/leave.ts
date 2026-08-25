@@ -4,7 +4,7 @@
  */
 
 import apiClient from './client';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, APP_WEB_BASE_URL } from '../config/api';
 
 export interface LeaveBalanceItem {
   time_off_policy: {
@@ -153,6 +153,16 @@ export const getLeaveDetail = async (
     API_ENDPOINTS.LEAVE.DETAIL(Number(id))
   );
   return response.data;
+};
+
+/**
+ * Download URL for leave request PDF
+ * (Requires Authorization header)
+ */
+export const getLeaveRequestDownloadUrl = (id: number | string): string => {
+  // Backend provides PDF via the HR web route
+  // e.g. https://hrm.elitementors.org.uk/hr/leaves/{id}/download-pdf
+  return `${APP_WEB_BASE_URL}/hr/leaves/${Number(id)}/download-pdf`;
 };
 
 /**
