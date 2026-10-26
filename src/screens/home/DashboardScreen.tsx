@@ -377,7 +377,8 @@ const DashboardScreen: React.FC = () => {
   const tabNav = navigation.getParent();
 
   const handleViewAttendance = () => {
-    (tabNav as any)?.navigate('Attendance');
+    // Always open Attendance list (not last nested screen)
+    (tabNav as any)?.navigate('Attendance', { screen: 'AttendanceList' });
   };
 
   const handleRequestLeave = () => {
